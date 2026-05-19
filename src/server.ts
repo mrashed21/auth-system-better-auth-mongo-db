@@ -31,15 +31,15 @@ const banner = (port: number | string) => {
   console.log(lines.join("\n"));
 };
 
-const divider = (char = "─", length = 50) =>
+const divider = (char = "─", length = 55) =>
   console.log("  " + char.repeat(length));
 
 export const log = {
-  info: (msg: string) => console.log(`  ℹ️  ${msg}`),
-  success: (msg: string) => console.log(`  ✅ ${msg}`),
-  warn: (msg: string) => console.log(`  ⚠️  ${msg}`),
-  error: (msg: string) => console.error(`  ❌ ${msg}`),
-  event: (msg: string) => console.log(`  ⚡ ${msg}`),
+  info: (msg: string) => console.log(`ℹ️  ${msg}`),
+  success: (msg: string) => console.log(`✅  ${msg}`),
+  warn: (msg: string) => console.log(`⚠️  ${msg}`),
+  error: (msg: string) => console.error(`❌  ${msg}`),
+  event: (msg: string) => console.log(`⚡  ${msg}`),
 };
 
 const server = async () => {
