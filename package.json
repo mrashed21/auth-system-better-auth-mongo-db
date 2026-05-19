@@ -26,6 +26,7 @@
     "multer": "^2.1.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^7.0.12",
+    "pidusage": "^4.0.1",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.4.3"
   },
@@ -37,6 +38,7 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^25.0.6",
     "@types/nodemailer": "^7.0.5",
+    "@types/pidusage": "^2.0.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"

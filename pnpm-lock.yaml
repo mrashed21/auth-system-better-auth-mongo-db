@@ -47,6 +47,9 @@ importers:
       nodemailer:
         specifier: ^7.0.12
         version: 7.0.13
+      pidusage:
+        specifier: ^4.0.1
+        version: 4.0.1
       tsconfig-paths:
         specifier: ^4.2.0
         version: 4.2.0
@@ -75,6 +78,9 @@ importers:
       '@types/nodemailer':
         specifier: ^7.0.5
         version: 7.0.11
+      '@types/pidusage':
+        specifier: ^2.0.5
+        version: 2.0.5
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@25.8.0)(typescript@5.9.3)
@@ -401,6 +407,9 @@ packages:
 
   '@types/nodemailer@7.0.11':
     resolution: {integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==}
+
+  '@types/pidusage@2.0.5':
+    resolution: {integrity: sha512-MIiyZI4/MK9UGUXWt0jJcCZhVw7YdhBuTOuqP/BjuLDLZ2PmmViMIQgZiWxtaMicQfAz/kMrZ5T7PKxFSkTeUA==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -886,6 +895,10 @@ packages:
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
 
+  pidusage@4.0.1:
+    resolution: {integrity: sha512-yCH2dtLHfEBnzlHUJymR/Z1nN2ePG3m392Mv8TFlTP1B0xkpMQNHAnfkY0n2tAi6ceKO6YWhxYfZ96V4vVkh/g==}
+    engines: {node: '>=18'}
+
   proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
@@ -1275,6 +1288,8 @@ snapshots:
   '@types/nodemailer@7.0.11':
     dependencies:
       '@types/node': 25.8.0
+
+  '@types/pidusage@2.0.5': {}
 
   '@types/qs@6.15.1': {}
 
@@ -1716,6 +1731,10 @@ snapshots:
   parseurl@1.3.3: {}
 
   path-to-regexp@8.4.2: {}
+
+  pidusage@4.0.1:
+    dependencies:
+      safe-buffer: 5.2.1
 
   proxy-addr@2.0.7:
     dependencies:
