@@ -1,20 +1,3 @@
-// import dotenv from "dotenv";
-// dotenv.config();
-
-// import { connectDB, connectMongoose } from "@/app/lib/mongodb";
-// import app from "./app";
-
-// const PORT = process.env.PORT || 5000;
-
-// (async () => {
-//   await connectDB();
-//   await connectMongoose();
-
-//   app.listen(PORT, () => {
-//     console.log(`Server running on port ${PORT}`);
-//   });
-// })();
-
 import app from "./app";
 import { env_config } from "./app/config/env-config";
 import { connectDB, connectMongoose } from "./app/lib/mongodb";
@@ -77,6 +60,7 @@ const server = async () => {
       log.event(`Listening on port ${PORT}`);
       log.info(`Environment : ${env_config.NODE_ENV}`);
       log.info(`Base URL    : http://localhost:${PORT}/api/v1`);
+      log.info(`Server Health: http://localhost:${PORT}/api/v1/health`);
       divider();
       console.log("");
     });
