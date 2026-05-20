@@ -15,8 +15,14 @@ export interface IUserModel {
   _id: Types.ObjectId;
   user_name: string;
   user_email: string;
+  email_verified?: boolean;
   user_phone: string;
+  phone_verified?: boolean;
+  google_connected?: boolean;
+  google_id?: string;
   user_password: string;
+  verify_otp?: string;
+  two_factor_enabled?: boolean;
   user_role: (typeof user_role)[keyof typeof user_role];
   user_area: string;
   user_city: string;
