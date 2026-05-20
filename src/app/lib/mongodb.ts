@@ -28,4 +28,4 @@ export const connectMongoose = async () => {
   }
 };
 
-export const db = client.db("mrashed21_db");
+export const db = client.db("test");
