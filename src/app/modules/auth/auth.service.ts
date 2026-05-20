@@ -88,6 +88,9 @@ export const auth_service = {
       otp_expires_at,
       email_verified: false,
       phone_verified: false,
+      otp_sent_count: 1,
+      otp_last_sent_at: new Date(),
+      otp_count_reset_at: new Date(),
     });
 
     // ! send otp email
@@ -118,16 +121,6 @@ export const auth_service = {
         `);
     }
 
-    // ! jwt payload
-
-    const jwt_payload: IJwtPayload = {
-      id: created_user._id.toString(),
-
-      role: created_user.user_role,
-
-      email_verified: created_user.email_verified,
-    };
-
     // ! response
     return {
       success: true,
@@ -146,13 +139,12 @@ export const auth_service = {
       },
     };
   },
-  // verify otp
+  //! verify otp
   verify_otp: async (payload: {
     user_email?: string;
     user_phone?: string;
     verify_otp: string;
   }) => {
-
     const { user_email, user_phone, verify_otp } = payload;
 
     // ! find user
@@ -188,8 +180,35 @@ export const auth_service = {
     }
 
     // ! verify otp
-    if (user_exists.verify_otp !== verify_otp) {
-      throw new api_error(httpStatus.BAD_REQUEST, "Invalid OTP");
+    if (String(user_exists.verify_otp) !== String(verify_otp)) {
+      user_exists.otp_verify_attempts =
+        (user_exists.otp_verify_attempts ?? 0) + 1;
+
+      // ! block after 5 attempts
+
+      if (user_exists.otp_verify_attempts >= 5) {
+        const blocked_until = new Date();
+
+        blocked_until.setMinutes(blocked_until.getMinutes() + 15);
+
+        user_exists.otp_blocked_until = blocked_until;
+
+        await user_exists.save();
+
+        throw new api_error(
+          httpStatus.TOO_MANY_REQUESTS,
+          "Too many failed attempts. Try again after 15 minutes",
+        );
+      }
+
+      await user_exists.save();
+
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        `Invalid OTP. Remaining attempts: ${
+          5 - user_exists.otp_verify_attempts
+        }`,
+      );
     }
 
     // ! update verification
@@ -202,8 +221,8 @@ export const auth_service = {
     }
 
     // ! clear otp
-    user_exists.verify_otp = undefined;
-    user_exists.otp_expires_at = undefined;
+    user_exists.verify_otp = null;
+    user_exists.otp_expires_at = null;
 
     // ! save user
     await user_exists.save();
@@ -240,9 +259,165 @@ export const auth_service = {
     };
   },
 
+  // ! reset otp
+  reset_otp: async (payload: { user_email?: string; user_phone?: string }) => {
+    const { user_email, user_phone } = payload;
+
+    // ! check email or phone
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
+
+    // ! find user
+    const user_exists = await user.findOne({
+      $or: [
+        ...(user_email ? [{ user_email }] : []),
+
+        ...(user_phone ? [{ user_phone }] : []),
+      ],
+    });
+
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.BAD_REQUEST, "User not found");
+    }
+
+    // ! already verified
+    if (user_email && user_exists.email_verified) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Email already verified");
+    }
+
+    if (user_phone && user_exists.phone_verified) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Phone already verified");
+    }
+
+    // ! blocked user check
+    if (
+      user_exists.otp_blocked_until &&
+      user_exists.otp_blocked_until > new Date()
+    ) {
+      const remaining_minutes = Math.ceil(
+        (user_exists.otp_blocked_until.getTime() - Date.now()) / (1000 * 60),
+      );
+
+      throw new api_error(
+        httpStatus.TOO_MANY_REQUESTS,
+        `Too many failed attempts. Try again after ${remaining_minutes} minutes`,
+      );
+    }
+
+    // ! current time
+    const now = new Date();
+
+    // ! initialize reset time
+    if (!user_exists.otp_count_reset_at) {
+      user_exists.otp_count_reset_at = now;
+    }
+
+    // ! reset counter after 1 hour
+    const one_hour = 1000 * 60 * 60;
+    const reset_diff = now.getTime() - user_exists.otp_count_reset_at.getTime();
+
+    if (reset_diff > one_hour) {
+      user_exists.otp_sent_count = 0;
+      user_exists.otp_count_reset_at = now;
+    }
+
+    // ! max 5 otp per hour
+    if ((user_exists.otp_sent_count ?? 0) >= 5) {
+      throw new api_error(
+        httpStatus.TOO_MANY_REQUESTS,
+        "Maximum OTP request limit exceeded. Try again after 1 hour",
+      );
+    }
+
+    // ! 3 minute cooldown
+    if (user_exists.otp_last_sent_at) {
+      const three_minutes = 1000 * 60 * 3;
+
+      const cooldown_diff =
+        now.getTime() - user_exists.otp_last_sent_at.getTime();
+
+      if (cooldown_diff < three_minutes) {
+        const remaining_seconds = Math.ceil(
+          (three_minutes - cooldown_diff) / 1000,
+        );
+
+        const minutes = Math.floor(remaining_seconds / 60);
+
+        const seconds = remaining_seconds % 60;
+
+        throw new api_error(
+          httpStatus.TOO_MANY_REQUESTS,
+          `Please wait ${minutes}m ${seconds}s before requesting another OTP`,
+        );
+      }
+    }
+
+    // ! generate new otp
+    const verify_otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // ! otp expire time
+    const otp_expires_at = new Date();
+
+    otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
+
+    // ! update otp data
+    user_exists.verify_otp = verify_otp;
+    user_exists.otp_expires_at = otp_expires_at;
+    user_exists.otp_last_sent_at = now;
+    user_exists.otp_sent_count = (user_exists.otp_sent_count ?? 0) + 1;
+
+    // ! reset verify attempts
+    user_exists.otp_verify_attempts = 0;
+    user_exists.otp_blocked_until = null;
+
+    // ! save user
+    await user_exists.save();
+
+    // ! send email otp
+    if (user_email) {
+      console.log(`
+      ========================================
+      RESET EMAIL OTP
+      ========================================
+      Email: ${user_email}
+      OTP: ${verify_otp}
+      Expire At: ${otp_expires_at.toLocaleString()}
+      OTP Count: ${user_exists.otp_sent_count}/5
+      ========================================
+      `);
+    }
+
+    // ! send phone otp
+
+    if (user_phone) {
+      console.log(`
+      ========================================
+      RESET PHONE OTP
+      ========================================
+      Phone: ${user_phone}
+      OTP: ${verify_otp}
+      Expire At: ${otp_expires_at.toLocaleString()}
+      OTP Count: ${user_exists.otp_sent_count}/5
+      ========================================
+      `);
+    }
+
+    // ! response
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "OTP reset successfully",
+    };
+  },
+
   get_all_users: async () => {
-    const users = await user.find();
-    // const users = await user.find().select("-user_password");
+    // const users = await user.find();
+    const users = await user.find().select("-user_password");
 
     return users;
   },
