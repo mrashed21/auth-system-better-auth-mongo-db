@@ -90,7 +90,7 @@ const user_model_schema = new Schema<IUserModel>(
       default: null,
     },
 
-    otp_count_reset_at: {
+    otp_count_resend_at: {
       type: Date,
       default: null,
     },

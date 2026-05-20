@@ -25,7 +25,7 @@ export interface IUserModel {
   otp_expires_at?: Date | null;
   otp_sent_count?: number;
   otp_last_sent_at?: Date | null;
-  otp_count_reset_at?: Date | null;
+  otp_count_resend_at?: Date | null;
   otp_verify_attempts?: number;
   otp_blocked_until?: Date | null;
   two_factor_enabled?: boolean;

@@ -90,7 +90,7 @@ export const auth_service = {
       phone_verified: false,
       otp_sent_count: 1,
       otp_last_sent_at: new Date(),
-      otp_count_reset_at: new Date(),
+      otp_count_resend_at: new Date(),
     });
 
     // ! send otp email
@@ -259,8 +259,8 @@ export const auth_service = {
     };
   },
 
-  // ! reset otp
-  reset_otp: async (payload: { user_email?: string; user_phone?: string }) => {
+  // ! resend otp
+  resend_otp: async (payload: { user_email?: string; user_phone?: string }) => {
     const { user_email, user_phone } = payload;
 
     // ! check email or phone
@@ -312,18 +312,19 @@ export const auth_service = {
     // ! current time
     const now = new Date();
 
-    // ! initialize reset time
-    if (!user_exists.otp_count_reset_at) {
-      user_exists.otp_count_reset_at = now;
+    // ! initialize resend time
+    if (!user_exists.otp_count_resend_at) {
+      user_exists.otp_count_resend_at = now;
     }
 
-    // ! reset counter after 1 hour
+    // ! resend counter after 1 hour
     const one_hour = 1000 * 60 * 60;
-    const reset_diff = now.getTime() - user_exists.otp_count_reset_at.getTime();
+    const resend_diff =
+      now.getTime() - user_exists.otp_count_resend_at.getTime();
 
-    if (reset_diff > one_hour) {
+    if (resend_diff > one_hour) {
       user_exists.otp_sent_count = 0;
-      user_exists.otp_count_reset_at = now;
+      user_exists.otp_count_resend_at = now;
     }
 
     // ! max 5 otp per hour
@@ -371,7 +372,7 @@ export const auth_service = {
     user_exists.otp_last_sent_at = now;
     user_exists.otp_sent_count = (user_exists.otp_sent_count ?? 0) + 1;
 
-    // ! reset verify attempts
+    // ! resend verify attempts
     user_exists.otp_verify_attempts = 0;
     user_exists.otp_blocked_until = null;
 
@@ -382,7 +383,7 @@ export const auth_service = {
     if (user_email) {
       console.log(`
       ========================================
-      RESET EMAIL OTP
+      resend EMAIL OTP
       ========================================
       Email: ${user_email}
       OTP: ${verify_otp}
@@ -397,7 +398,7 @@ export const auth_service = {
     if (user_phone) {
       console.log(`
       ========================================
-      RESET PHONE OTP
+      resend PHONE OTP
       ========================================
       Phone: ${user_phone}
       OTP: ${verify_otp}
@@ -411,7 +412,7 @@ export const auth_service = {
     return {
       success: true,
       statusCode: httpStatus.OK,
-      message: "OTP reset successfully",
+      message: "OTP resend successfully",
     };
   },
 
