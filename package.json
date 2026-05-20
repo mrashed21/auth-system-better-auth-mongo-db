@@ -29,6 +29,7 @@
     "nodemailer": "^7.0.12",
     "pidusage": "^4.0.1",
     "tsconfig-paths": "^4.2.0",
+    "ua-parser-js": "^2.0.9",
     "zod": "^4.4.3"
   },
   "devDependencies": {
