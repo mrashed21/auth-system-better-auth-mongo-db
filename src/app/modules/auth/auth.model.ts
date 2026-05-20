@@ -70,39 +70,8 @@ const user_model_schema = new Schema<IUserModel>(
       minlength: [6, "Password is too short"],
       select: false,
     },
-    verify_otp: {
-      type: String,
-      default: null,
-    },
 
-    otp_expires_at: {
-      type: Date,
-      default: null,
-    },
 
-    otp_sent_count: {
-      type: Number,
-      default: 0,
-    },
-
-    otp_last_sent_at: {
-      type: Date,
-      default: null,
-    },
-
-    otp_count_resend_at: {
-      type: Date,
-      default: null,
-    },
-    otp_verify_attempts: {
-      type: Number,
-      default: 0,
-    },
-
-    otp_blocked_until: {
-      type: Date,
-      default: null,
-    },
     two_factor_enabled: {
       type: Boolean,
       default: false,

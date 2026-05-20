@@ -1,23 +1,23 @@
-// register.service.ts
 
 import bcrypt from "bcrypt";
 import httpStatus from "http-status";
-
+import api_error from "@/app/helper/api-error";
 import { IUserModel } from "./auth.interface";
 import { user } from "./auth.model";
-
 import { IJwtPayload } from "../../utils/jwt";
-
-import api_error from "@/app/helper/api-error";
 import { token_utils } from "../../utils/token";
-
-const generate_otp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
+import { otp_service } from "../otp/opt.service";
+import { otp_types } from "../otp/otp.interface";
 
 export const auth_service = {
   // ! register
-  register: async (payload: Partial<IUserModel>) => {
+  register: async (
+    payload: Partial<IUserModel>,
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+    },
+  ) => {
     const {
       user_name,
       user_email,
@@ -29,6 +29,14 @@ export const auth_service = {
       user_country,
       user_profile_image,
     } = payload;
+
+    // ! prevent both email and phone together
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
 
     // ! check email or phone
     if (!user_email && !user_phone) {
@@ -66,13 +74,6 @@ export const auth_service = {
     // ! hash password
     const hashed_password = await bcrypt.hash(user_password!, 12);
 
-    // ! generate otp
-    const verify_otp = generate_otp();
-    // ! otp expire time
-    const otp_expires_at = new Date();
-
-    otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
-
     // ! create user
     const created_user = await user.create({
       user_name,
@@ -84,41 +85,26 @@ export const auth_service = {
       user_city,
       user_country,
       user_profile_image,
-      verify_otp,
-      otp_expires_at,
       email_verified: false,
       phone_verified: false,
-      otp_sent_count: 1,
-      otp_last_sent_at: new Date(),
-      otp_count_resend_at: new Date(),
     });
 
-    // ! send otp email
+    try {
+      // ! send otp
+      await otp_service.create_and_send({
+        otp_type: user_email ? otp_types.email_verify : otp_types.phone_verify,
+        user_email,
+        user_phone,
+        request_ip: request_data?.request_ip || "127.0.0.1",
+        request_device: request_data?.request_device || "unknown-device",
+      });
+    } catch (error) {
+      // ! rollback user if otp failed
+      await user.deleteOne({
+        _id: created_user._id,
+      });
 
-    if (user_email) {
-      console.log(`
-      ========================================
-      EMAIL OTP SENT
-      ========================================
-      Email: ${user_email}
-      Expire At: ${otp_expires_at.toLocaleString()}
-      OTP: ${verify_otp}
-      ========================================
-      `);
-    }
-
-    // ! send otp phone
-
-    if (user_phone) {
-      console.log(`
-        PHONE OTP SENT
-        ========================================
-        Phone: ${user_phone}
-        ========================================
-        Expire At: ${otp_expires_at.toLocaleString()}
-        OTP: ${verify_otp}
-        ========================================
-        `);
+      throw error;
     }
 
     // ! response
@@ -139,13 +125,30 @@ export const auth_service = {
       },
     };
   },
-  //! verify otp
+
+  // ! verify otp
   verify_otp: async (payload: {
     user_email?: string;
     user_phone?: string;
     verify_otp: string;
   }) => {
     const { user_email, user_phone, verify_otp } = payload;
+
+    // ! prevent both
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    // ! required
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
 
     // ! find user
     const user_exists = await user.findOne({
@@ -169,47 +172,14 @@ export const auth_service = {
       throw new api_error(httpStatus.BAD_REQUEST, "Phone already verified");
     }
 
-    // ! otp exists
-    if (!user_exists.verify_otp || !user_exists.otp_expires_at) {
-      throw new api_error(httpStatus.BAD_REQUEST, "OTP not found");
-    }
-
-    // ! check otp expire
-    if (user_exists.otp_expires_at < new Date()) {
-      throw new api_error(httpStatus.BAD_REQUEST, "OTP expired");
-    }
-
     // ! verify otp
-    if (String(user_exists.verify_otp) !== String(verify_otp)) {
-      user_exists.otp_verify_attempts =
-        (user_exists.otp_verify_attempts ?? 0) + 1;
+    await otp_service.verify({
+      otp_type: user_email ? otp_types.email_verify : otp_types.phone_verify,
 
-      // ! block after 5 attempts
-
-      if (user_exists.otp_verify_attempts >= 5) {
-        const blocked_until = new Date();
-
-        blocked_until.setMinutes(blocked_until.getMinutes() + 15);
-
-        user_exists.otp_blocked_until = blocked_until;
-
-        await user_exists.save();
-
-        throw new api_error(
-          httpStatus.TOO_MANY_REQUESTS,
-          "Too many failed attempts. Try again after 15 minutes",
-        );
-      }
-
-      await user_exists.save();
-
-      throw new api_error(
-        httpStatus.BAD_REQUEST,
-        `Invalid OTP. Remaining attempts: ${
-          5 - user_exists.otp_verify_attempts
-        }`,
-      );
-    }
+      user_email,
+      user_phone,
+      verify_otp,
+    });
 
     // ! update verification
     if (user_email) {
@@ -219,10 +189,6 @@ export const auth_service = {
     if (user_phone) {
       user_exists.phone_verified = true;
     }
-
-    // ! clear otp
-    user_exists.verify_otp = null;
-    user_exists.otp_expires_at = null;
 
     // ! save user
     await user_exists.save();
@@ -236,6 +202,7 @@ export const auth_service = {
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
+
     const refresh_token = token_utils.create.refresh(jwt_payload);
 
     // ! response
@@ -260,10 +227,27 @@ export const auth_service = {
   },
 
   // ! resend otp
-  resend_otp: async (payload: { user_email?: string; user_phone?: string }) => {
+  resend_otp: async (
+    payload: {
+      user_email?: string;
+      user_phone?: string;
+    },
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+    },
+  ) => {
     const { user_email, user_phone } = payload;
 
-    // ! check email or phone
+    // ! prevent both
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    // ! required
     if (!user_email && !user_phone) {
       throw new api_error(
         httpStatus.BAD_REQUEST,
@@ -275,7 +259,6 @@ export const auth_service = {
     const user_exists = await user.findOne({
       $or: [
         ...(user_email ? [{ user_email }] : []),
-
         ...(user_phone ? [{ user_phone }] : []),
       ],
     });
@@ -294,119 +277,17 @@ export const auth_service = {
       throw new api_error(httpStatus.BAD_REQUEST, "Phone already verified");
     }
 
-    // ! blocked user check
-    if (
-      user_exists.otp_blocked_until &&
-      user_exists.otp_blocked_until > new Date()
-    ) {
-      const remaining_minutes = Math.ceil(
-        (user_exists.otp_blocked_until.getTime() - Date.now()) / (1000 * 60),
-      );
+    // ! resend otp
+    await otp_service.resend({
+      otp_type: user_email ? otp_types.email_verify : otp_types.phone_verify,
 
-      throw new api_error(
-        httpStatus.TOO_MANY_REQUESTS,
-        `Too many failed attempts. Try again after ${remaining_minutes} minutes`,
-      );
-    }
+      user_email,
+      user_phone,
 
-    // ! current time
-    const now = new Date();
+      request_ip: request_data?.request_ip || "127.0.0.1",
 
-    // ! initialize resend time
-    if (!user_exists.otp_count_resend_at) {
-      user_exists.otp_count_resend_at = now;
-    }
-
-    // ! resend counter after 1 hour
-    const one_hour = 1000 * 60 * 60;
-    const resend_diff =
-      now.getTime() - user_exists.otp_count_resend_at.getTime();
-
-    if (resend_diff > one_hour) {
-      user_exists.otp_sent_count = 0;
-      user_exists.otp_count_resend_at = now;
-    }
-
-    // ! max 5 otp per hour
-    if ((user_exists.otp_sent_count ?? 0) >= 5) {
-      throw new api_error(
-        httpStatus.TOO_MANY_REQUESTS,
-        "Maximum OTP request limit exceeded. Try again after 1 hour",
-      );
-    }
-
-    // ! 3 minute cooldown
-    if (user_exists.otp_last_sent_at) {
-      const three_minutes = 1000 * 60 * 3;
-
-      const cooldown_diff =
-        now.getTime() - user_exists.otp_last_sent_at.getTime();
-
-      if (cooldown_diff < three_minutes) {
-        const remaining_seconds = Math.ceil(
-          (three_minutes - cooldown_diff) / 1000,
-        );
-
-        const minutes = Math.floor(remaining_seconds / 60);
-
-        const seconds = remaining_seconds % 60;
-
-        throw new api_error(
-          httpStatus.TOO_MANY_REQUESTS,
-          `Please wait ${minutes}m ${seconds}s before requesting another OTP`,
-        );
-      }
-    }
-
-    // ! generate new otp
-    const verify_otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // ! otp expire time
-    const otp_expires_at = new Date();
-
-    otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
-
-    // ! update otp data
-    user_exists.verify_otp = verify_otp;
-    user_exists.otp_expires_at = otp_expires_at;
-    user_exists.otp_last_sent_at = now;
-    user_exists.otp_sent_count = (user_exists.otp_sent_count ?? 0) + 1;
-
-    // ! resend verify attempts
-    user_exists.otp_verify_attempts = 0;
-    user_exists.otp_blocked_until = null;
-
-    // ! save user
-    await user_exists.save();
-
-    // ! send email otp
-    if (user_email) {
-      console.log(`
-      ========================================
-      resend EMAIL OTP
-      ========================================
-      Email: ${user_email}
-      OTP: ${verify_otp}
-      Expire At: ${otp_expires_at.toLocaleString()}
-      OTP Count: ${user_exists.otp_sent_count}/5
-      ========================================
-      `);
-    }
-
-    // ! send phone otp
-
-    if (user_phone) {
-      console.log(`
-      ========================================
-      resend PHONE OTP
-      ========================================
-      Phone: ${user_phone}
-      OTP: ${verify_otp}
-      Expire At: ${otp_expires_at.toLocaleString()}
-      OTP Count: ${user_exists.otp_sent_count}/5
-      ========================================
-      `);
-    }
+      request_device: request_data?.request_device || "unknown-device",
+    });
 
     // ! response
     return {
@@ -424,7 +305,15 @@ export const auth_service = {
   }) => {
     const { user_email, user_phone, user_password } = payload;
 
-    // ! check email or phone
+    // ! prevent both
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    // ! required
     if (!user_email && !user_phone) {
       throw new api_error(
         httpStatus.BAD_REQUEST,
@@ -442,7 +331,7 @@ export const auth_service = {
       })
       .select("+user_password");
 
-    // ! user not found
+    // ! invalid credentials
     if (!user_exists) {
       throw new api_error(httpStatus.BAD_REQUEST, "Invalid credentials");
     }
@@ -462,12 +351,12 @@ export const auth_service = {
       throw new api_error(httpStatus.FORBIDDEN, "Account deactivated");
     }
 
-    // ! email verification check
+    // ! email verify check
     if (user_email && !user_exists.email_verified) {
       throw new api_error(httpStatus.UNAUTHORIZED, "Email not verified");
     }
 
-    // ! phone verification check
+    // ! phone verify check
     if (user_phone && !user_exists.phone_verified) {
       throw new api_error(httpStatus.UNAUTHORIZED, "Phone number not verified");
     }
@@ -492,6 +381,7 @@ export const auth_service = {
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
+
     const refresh_token = token_utils.create.refresh(jwt_payload);
 
     // ! response
@@ -514,11 +404,5 @@ export const auth_service = {
         },
       },
     };
-  },
-  get_all_users: async () => {
-    // const users = await user.find();
-    const users = await user.find().select("-user_password");
-
-    return users;
   },
 };

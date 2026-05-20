@@ -21,13 +21,6 @@ export interface IUserModel {
   google_connected?: boolean;
   google_id?: string;
   user_password: string;
-  verify_otp?: string | null;
-  otp_expires_at?: Date | null;
-  otp_sent_count?: number;
-  otp_last_sent_at?: Date | null;
-  otp_count_resend_at?: Date | null;
-  otp_verify_attempts?: number;
-  otp_blocked_until?: Date | null;
   two_factor_enabled?: boolean;
   user_role: (typeof user_role)[keyof typeof user_role];
   user_area: string;
