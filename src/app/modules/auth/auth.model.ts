@@ -73,6 +73,9 @@ const user_model_schema = new Schema<IUserModel>(
     verify_otp: {
       type: String,
     },
+    otp_expires_at: {
+      type: Date,
+    },
     two_factor_enabled: {
       type: Boolean,
       default: false,

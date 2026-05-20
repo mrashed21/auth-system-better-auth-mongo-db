@@ -1,3 +1,5 @@
+// cookie.ts
+
 import { CookieOptions, Request, Response } from "express";
 
 export const cookie_utils = {
@@ -12,7 +14,13 @@ export const cookie_utils = {
   },
 
   // ! clear cookie
-  clear: (res: Response, key: string, options: CookieOptions) => {
-    res.clearCookie(key, options);
+  clear: (res: Response, key: string, options?: CookieOptions) => {
+    res.clearCookie(key, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
+      ...options,
+    });
   },
 };

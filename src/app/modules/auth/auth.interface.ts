@@ -22,6 +22,7 @@ export interface IUserModel {
   google_id?: string;
   user_password: string;
   verify_otp?: string;
+  otp_expires_at?: Date;
   two_factor_enabled?: boolean;
   user_role: (typeof user_role)[keyof typeof user_role];
   user_area: string;
