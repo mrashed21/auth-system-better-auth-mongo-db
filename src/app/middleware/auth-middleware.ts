@@ -1,21 +1,17 @@
 import { NextFunction, Request, Response } from "express";
-
 import status from "http-status";
 
-import api_error from "../helper/api-error";
-
 import { env_config } from "../config/env-config";
-
-import { cookie_utils } from "../utils/cookie";
-
-import { jwt_token } from "../utils/jwt";
-
+import api_error from "../helper/api-error";
 import { db } from "../lib/mongodb";
 import { user_status } from "../modules/auth/auth.interface";
+import { cookie_utils } from "../utils/cookie";
+import { jwt_token } from "../utils/jwt";
 
 export const check_auth =
   (...authRoles: string[]) =>
   async (req: Request, res: Response, next: NextFunction) => {
+    console.log("Auth middleware called for path:", req);
     try {
       /*
        |--------------------------------------------------------------------------
@@ -23,16 +19,18 @@ export const check_auth =
        |--------------------------------------------------------------------------
        */
 
-      const access_token = cookie_utils.get(req, "access_token");
+      const authorization = req.headers.authorization;
 
-      if (!access_token) {
+      if (!authorization || !authorization.startsWith("Bearer ")) {
         throw new api_error(
           status.UNAUTHORIZED,
           "Unauthorized access! No access token provided.",
         );
       }
 
-      const verifiedToken = jwt_token.verify.access(
+      const access_token = authorization.split(" ")[1];
+
+      const verifiedToken = jwt_token.verify(
         access_token,
         env_config.ACCESS_TOKEN_SECRET,
       );
@@ -45,11 +43,9 @@ export const check_auth =
       }
 
       req.user = {
-        id: verifiedToken.data.id,
+        _id: verifiedToken.data._id,
 
-        user_role: verifiedToken.data.user_role,
-
-        user_email: verifiedToken.data.user_email,
+        user_role: verifiedToken.data.role,
       };
 
       /*
@@ -136,11 +132,9 @@ export const check_auth =
            */
 
           req.user = {
-            id: user._id.toString(),
+            _id: user._id.toString(),
 
             user_role: user.user_role,
-
-            user_email: user.user_email,
           };
         }
       }

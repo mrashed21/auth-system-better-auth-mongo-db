@@ -90,4 +90,16 @@ export const auth_controller = {
       },
     });
   }),
+  // ! get logged user
+  get_me: catch_async(async (req: Request, res: Response) => {
+    const { _id: user_id } = req.user;
+    console.log("Get me controller called for user ID:", user_id);
+    const result = await auth_service.get_me(user_id);
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "User retrieved successfully",
+      data: result.data,
+    });
+  }),
 };

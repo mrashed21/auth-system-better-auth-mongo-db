@@ -495,4 +495,34 @@ export const auth_service = {
       },
     };
   },
+
+  // ! get logged user
+  get_me: async (user_id: string) => {
+    // ! find user
+    const user_exists = await user
+      .findById(user_id)
+      .select("-user_password")
+      .lean();
+
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    // ! deleted user
+    if (user_exists.is_deleted) {
+      throw new api_error(httpStatus.FORBIDDEN, "Account deleted");
+    }
+
+    // ! response
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "User retrieved successfully",
+
+      data: {
+        user: user_exists,
+      },
+    };
+  },
 };
