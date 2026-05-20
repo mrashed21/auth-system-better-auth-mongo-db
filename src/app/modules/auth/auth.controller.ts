@@ -16,6 +16,17 @@ export const auth_controller = {
     });
   }),
 
+  // ! verify otp
+  verify_otp: catch_async(async (req: Request, res: Response) => {
+    const result = await auth_service.verify_otp(req.body);
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "OTP verified successfully",
+      data: result,
+    });
+  }),
+
   get_all_users: catch_async(async (req: Request, res: Response) => {
     const result = await auth_service.get_all_users();
     send_response(res, {

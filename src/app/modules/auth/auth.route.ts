@@ -4,6 +4,7 @@ import { auth_controller } from "./auth.controller";
 const router: Router = Router();
 
 router.route("/register").post(auth_controller.register);
+router.route("/verify-otp").post(auth_controller.verify_otp);
 router.route("/all-users").get(auth_controller.get_all_users);
 
 export const auth_router = router;

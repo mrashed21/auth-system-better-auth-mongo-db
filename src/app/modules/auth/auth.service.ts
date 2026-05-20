@@ -31,7 +31,6 @@ export const auth_service = {
     } = payload;
 
     // ! check email or phone
-
     if (!user_email && !user_phone) {
       throw new api_error(
         httpStatus.BAD_REQUEST,
@@ -40,7 +39,6 @@ export const auth_service = {
     }
 
     // ! check existing email
-
     if (user_email) {
       const existing_email_user = await user.findOne({
         user_email,
@@ -52,7 +50,6 @@ export const auth_service = {
     }
 
     // ! check existing phone
-
     if (user_phone) {
       const existing_phone_user = await user.findOne({
         user_phone,
@@ -67,21 +64,16 @@ export const auth_service = {
     }
 
     // ! hash password
-
     const hashed_password = await bcrypt.hash(user_password!, 12);
 
     // ! generate otp
-
     const verify_otp = generate_otp();
-
     // ! otp expire time
-
     const otp_expires_at = new Date();
 
     otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
 
     // ! create user
-
     const created_user = await user.create({
       user_name,
       user_email,
@@ -136,21 +128,12 @@ export const auth_service = {
       email_verified: created_user.email_verified,
     };
 
-    // ! create tokens
-
-    const access_token = token_utils.create.access(jwt_payload);
-
-    const refresh_token = token_utils.create.refresh(jwt_payload);
-
     // ! response
-
     return {
       success: true,
       statusCode: httpStatus.CREATED,
       message: "User registered successfully",
       data: {
-        access_token,
-        refresh_token,
         user: {
           _id: created_user._id,
           user_name: created_user.user_name,
@@ -159,6 +142,111 @@ export const auth_service = {
           user_role: created_user.user_role,
           email_verified: created_user.email_verified,
           phone_verified: created_user.phone_verified,
+        },
+      },
+    };
+  },
+  // verify otp
+  verify_otp: async (payload: {
+    user_email?: string;
+    user_phone?: string;
+    verify_otp: string;
+  }) => {
+    const { user_email, user_phone, verify_otp } = payload;
+
+    // ! find user
+
+    const user_exists = await user.findOne({
+      $or: [
+        ...(user_email ? [{ user_email }] : []),
+
+        ...(user_phone ? [{ user_phone }] : []),
+      ],
+    });
+
+    // ! user not found
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.BAD_REQUEST, "User not found");
+    }
+
+    // ! already verified
+
+    if (user_email && user_exists.email_verified) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Email already verified");
+    }
+
+    if (user_phone && user_exists.phone_verified) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Phone already verified");
+    }
+
+    // ! otp exists
+
+    if (!user_exists.verify_otp || !user_exists.otp_expires_at) {
+      throw new api_error(httpStatus.BAD_REQUEST, "OTP not found");
+    }
+
+    // ! check otp expire
+
+    if (user_exists.otp_expires_at < new Date()) {
+      throw new api_error(httpStatus.BAD_REQUEST, "OTP expired");
+    }
+
+    // ! verify otp
+
+    if (user_exists.verify_otp !== verify_otp) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Invalid OTP");
+    }
+
+    // ! update verification
+
+    if (user_email) {
+      user_exists.email_verified = true;
+    }
+
+    if (user_phone) {
+      user_exists.phone_verified = true;
+    }
+
+    // ! clear otp
+    user_exists.verify_otp = undefined;
+
+    user_exists.otp_expires_at = undefined;
+
+    // ! save user
+
+    await user_exists.save();
+
+    // ! jwt payload
+
+    const jwt_payload: IJwtPayload = {
+      id: user_exists._id.toString(),
+      role: user_exists.user_role,
+      email_verified: user_exists.email_verified,
+    };
+
+    // ! generate tokens
+
+    const access_token = token_utils.create.access(jwt_payload);
+    const refresh_token = token_utils.create.refresh(jwt_payload);
+
+    // ! response
+
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "OTP verified successfully",
+      data: {
+        access_token,
+        refresh_token,
+        user: {
+          _id: user_exists._id,
+          user_name: user_exists.user_name,
+          user_email: user_exists.user_email,
+          user_phone: user_exists.user_phone,
+          email_verified: user_exists.email_verified,
+          phone_verified: user_exists.phone_verified,
+          user_role: user_exists.user_role,
         },
       },
     };
