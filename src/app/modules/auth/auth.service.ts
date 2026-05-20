@@ -416,6 +416,105 @@ export const auth_service = {
     };
   },
 
+  // ! login
+  login: async (payload: {
+    user_email?: string;
+    user_phone?: string;
+    user_password: string;
+  }) => {
+    const { user_email, user_phone, user_password } = payload;
+
+    // ! check email or phone
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
+
+    // ! find user
+    const user_exists = await user
+      .findOne({
+        $or: [
+          ...(user_email ? [{ user_email }] : []),
+          ...(user_phone ? [{ user_phone }] : []),
+        ],
+      })
+      .select("+user_password");
+
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Invalid credentials");
+    }
+
+    // ! deleted user
+    if (user_exists.is_deleted) {
+      throw new api_error(httpStatus.FORBIDDEN, "Account deleted");
+    }
+
+    // ! banned user
+    if (user_exists.user_status === "banned") {
+      throw new api_error(httpStatus.FORBIDDEN, "Account banned");
+    }
+
+    // ! deactive user
+    if (user_exists.user_status === "deactive") {
+      throw new api_error(httpStatus.FORBIDDEN, "Account deactivated");
+    }
+
+    // ! email verification check
+    if (user_email && !user_exists.email_verified) {
+      throw new api_error(httpStatus.UNAUTHORIZED, "Email not verified");
+    }
+
+    // ! phone verification check
+    if (user_phone && !user_exists.phone_verified) {
+      throw new api_error(httpStatus.UNAUTHORIZED, "Phone number not verified");
+    }
+
+    // ! compare password
+    const password_matched = await bcrypt.compare(
+      user_password,
+      user_exists.user_password,
+    );
+
+    // ! invalid password
+    if (!password_matched) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Invalid credentials");
+    }
+
+    // ! jwt payload
+    const jwt_payload: IJwtPayload = {
+      id: user_exists._id.toString(),
+      role: user_exists.user_role,
+      email_verified: user_exists.email_verified,
+    };
+
+    // ! generate tokens
+    const access_token = token_utils.create.access(jwt_payload);
+    const refresh_token = token_utils.create.refresh(jwt_payload);
+
+    // ! response
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Login successful",
+      data: {
+        access_token,
+        refresh_token,
+        user: {
+          _id: user_exists._id,
+          user_name: user_exists.user_name,
+          user_email: user_exists.user_email,
+          user_phone: user_exists.user_phone,
+          email_verified: user_exists.email_verified,
+          phone_verified: user_exists.phone_verified,
+          user_role: user_exists.user_role,
+          user_status: user_exists.user_status,
+        },
+      },
+    };
+  },
   get_all_users: async () => {
     // const users = await user.find();
     const users = await user.find().select("-user_password");

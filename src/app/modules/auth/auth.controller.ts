@@ -49,6 +49,24 @@ export const auth_controller = {
     });
   }),
 
+  // ! login
+  login: catch_async(async (req: Request, res: Response) => {
+    const result = await auth_service.login(req.body);
+
+    // ! set refresh token cookie
+    token_utils.set_cookie.refresh(res, result.data.refresh_token);
+
+    // ! response
+    res.status(result.statusCode).json({
+      success: result.success,
+      message: result.message,
+      data: {
+        access_token: result.data.access_token,
+        user: result.data.user,
+      },
+    });
+  }),
+
   // ! get all users
   get_all_users: catch_async(async (req: Request, res: Response) => {
     const result = await auth_service.get_all_users();
