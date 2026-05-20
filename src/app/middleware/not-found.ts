@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import status from "http-status";
 
-const notFound = (req: Request, res: Response) => {
+const not_found = (req: Request, res: Response) => {
   res.status(status.NOT_FOUND).json({
     success: false,
     message: `Route ${req.originalUrl} Not Found`,
@@ -10,4 +10,4 @@ const notFound = (req: Request, res: Response) => {
   });
 };
 
-export default notFound;
+export default not_found;

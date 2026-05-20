@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { handleMongooseError } from "./error-handler";
 
-export const globalErrorHandler = (
+export const global_error = (
   error: any,
   req: Request,
   res: Response,
