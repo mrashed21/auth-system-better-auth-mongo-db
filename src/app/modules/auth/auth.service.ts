@@ -152,26 +152,23 @@ export const auth_service = {
     user_phone?: string;
     verify_otp: string;
   }) => {
+
     const { user_email, user_phone, verify_otp } = payload;
 
     // ! find user
-
     const user_exists = await user.findOne({
       $or: [
         ...(user_email ? [{ user_email }] : []),
-
         ...(user_phone ? [{ user_phone }] : []),
       ],
     });
 
     // ! user not found
-
     if (!user_exists) {
       throw new api_error(httpStatus.BAD_REQUEST, "User not found");
     }
 
     // ! already verified
-
     if (user_email && user_exists.email_verified) {
       throw new api_error(httpStatus.BAD_REQUEST, "Email already verified");
     }
@@ -181,25 +178,21 @@ export const auth_service = {
     }
 
     // ! otp exists
-
     if (!user_exists.verify_otp || !user_exists.otp_expires_at) {
       throw new api_error(httpStatus.BAD_REQUEST, "OTP not found");
     }
 
     // ! check otp expire
-
     if (user_exists.otp_expires_at < new Date()) {
       throw new api_error(httpStatus.BAD_REQUEST, "OTP expired");
     }
 
     // ! verify otp
-
     if (user_exists.verify_otp !== verify_otp) {
       throw new api_error(httpStatus.BAD_REQUEST, "Invalid OTP");
     }
 
     // ! update verification
-
     if (user_email) {
       user_exists.email_verified = true;
     }
@@ -210,15 +203,12 @@ export const auth_service = {
 
     // ! clear otp
     user_exists.verify_otp = undefined;
-
     user_exists.otp_expires_at = undefined;
 
     // ! save user
-
     await user_exists.save();
 
     // ! jwt payload
-
     const jwt_payload: IJwtPayload = {
       id: user_exists._id.toString(),
       role: user_exists.user_role,
@@ -226,12 +216,10 @@ export const auth_service = {
     };
 
     // ! generate tokens
-
     const access_token = token_utils.create.access(jwt_payload);
     const refresh_token = token_utils.create.refresh(jwt_payload);
 
     // ! response
-
     return {
       success: true,
       statusCode: httpStatus.OK,
