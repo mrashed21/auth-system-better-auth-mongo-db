@@ -14,9 +14,9 @@ export const user_status = {
 export interface IUserModel {
   _id: Types.ObjectId;
   user_name: string;
-  user_email: string;
+  user_email: string | undefined;
   email_verified?: boolean;
-  user_phone: string;
+  user_phone: string | undefined;
   phone_verified?: boolean;
   google_connected?: boolean;
   google_id?: string;
@@ -26,7 +26,7 @@ export interface IUserModel {
   user_area: string;
   user_city: string;
   user_country: string;
-  user_profile_image: string;
+  user_profile_image: string | undefined;
   user_status: (typeof user_status)[keyof typeof user_status];
   is_deleted: boolean;
   deleted_at?: Date;

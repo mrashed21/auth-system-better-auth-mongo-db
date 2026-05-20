@@ -1,8 +1,6 @@
+import api_error from "@/app/helper/api-error";
 import bcrypt from "bcryptjs";
 import httpStatus from "http-status";
-
-import api_error from "@/app/helper/api-error";
-
 import { otp_types } from "./otp.interface";
 import { otp } from "./otp.model";
 
@@ -22,19 +20,10 @@ export const otp_service = {
     const { otp_type, user_email, user_phone, request_ip, request_device } =
       payload;
 
-    // ! generate otp
-    const plain_otp = generate_otp();
+    const now = new Date();
 
-    // ! hash otp
-    const hashed_otp = await bcrypt.hash(plain_otp, 12);
-
-    // ! expire time
-    const otp_expires_at = new Date();
-
-    otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
-
-    // ! delete previous otp
-    await otp.deleteMany({
+    // ! FIND EXISTING OTP
+    let otp_exists = await otp.findOne({
       otp_type,
       $or: [
         ...(user_email ? [{ user_email }] : []),
@@ -42,49 +31,143 @@ export const otp_service = {
       ],
     });
 
-    // ! create otp
-    const created_otp = await otp.create({
-      otp_type,
-      user_email,
-      user_phone,
-      verify_otp: hashed_otp,
-      otp_expires_at,
-      otp_verified: false,
-      otp_verify_attempts: 0,
-      otp_sent_count: 1,
-      otp_last_sent_at: new Date(),
-      otp_count_reset_at: new Date(),
-      request_ip,
-      request_device,
-    });
+    // ! BLOCK CHECK
+    if (otp_exists?.otp_blocked_until && otp_exists.otp_blocked_until > now) {
+      const remaining_minutes = Math.ceil(
+        (otp_exists.otp_blocked_until.getTime() - now.getTime()) / (1000 * 60),
+      );
 
-    // ! send email otp
+      throw new api_error(
+        httpStatus.TOO_MANY_REQUESTS,
+        `OTP request blocked. Try again after ${remaining_minutes} minutes`,
+      );
+    }
+
+    // ! RESET COUNT AFTER 1 HOUR
+    if (otp_exists?.otp_count_reset_at) {
+      const one_hour_ms = 1000 * 60 * 60;
+
+      const diff = now.getTime() - otp_exists.otp_count_reset_at.getTime();
+
+      if (diff >= one_hour_ms) {
+        otp_exists.otp_sent_count = 0;
+
+        otp_exists.otp_count_reset_at = now;
+
+        otp_exists.otp_blocked_until = null;
+      }
+    }
+
+    // ! 2 MINUTE COOLDOWN
+
+    if (otp_exists?.otp_last_sent_at) {
+      const two_minutes_ms = 1000 * 60 * 2;
+      //   const two_minutes_ms = 1000 * 1;
+
+      const diff = now.getTime() - otp_exists.otp_last_sent_at.getTime();
+
+      if (diff < two_minutes_ms) {
+        const remaining_seconds = Math.ceil((two_minutes_ms - diff) / 1000);
+
+        const minutes = Math.floor(remaining_seconds / 60);
+
+        const seconds = remaining_seconds % 60;
+
+        throw new api_error(
+          httpStatus.TOO_MANY_REQUESTS,
+          `Please wait ${minutes}m ${seconds}s before requesting another OTP`,
+        );
+      }
+    }
+
+    // ! MAX 5 OTP PER HOUR
+    if ((otp_exists?.otp_sent_count ?? 0) >= 5) {
+      const blocked_until = new Date();
+
+      blocked_until.setMinutes(blocked_until.getMinutes() + 30);
+
+      if (otp_exists) {
+        otp_exists.otp_blocked_until = blocked_until;
+
+        await otp_exists.save();
+      }
+
+      throw new api_error(
+        httpStatus.TOO_MANY_REQUESTS,
+        `Maximum OTP request limit exceeded. Blocked for ${blocked_until.getMinutes()} minutes`,
+      );
+    }
+
+    // ! GENERATE OTP
+    const plain_otp = generate_otp();
+
+    const hashed_otp = await bcrypt.hash(plain_otp, 12);
+
+    const otp_expires_at = new Date();
+
+    otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
+
+    // ! UPDATE EXISTING OTP
+    if (otp_exists) {
+      otp_exists.verify_otp = hashed_otp;
+      otp_exists.otp_expires_at = otp_expires_at;
+      otp_exists.otp_verified = false;
+      otp_exists.otp_last_sent_at = now;
+      otp_exists.otp_sent_count = (otp_exists.otp_sent_count ?? 0) + 1;
+      otp_exists.otp_verify_attempts = 0;
+      otp_exists.request_ip = request_ip;
+      otp_exists.request_device = request_device;
+
+      await otp_exists.save();
+    }
+
+    // ! CREATE OTP
+    else {
+      otp_exists = await otp.create({
+        otp_type,
+        user_email,
+        user_phone,
+        verify_otp: hashed_otp,
+        otp_expires_at,
+        otp_verified: false,
+        otp_verify_attempts: 0,
+        otp_sent_count: 1,
+        otp_last_sent_at: now,
+        otp_count_reset_at: now,
+        request_ip,
+        request_device,
+      });
+    }
+
+    // ! SEND OTP
+
     if (user_email) {
       console.log(`
-        ========================================
-        EMAIL OTP SENT
-        ========================================
-        Email: ${user_email}
-        OTP: ${plain_otp}
-        Expire At: ${otp_expires_at.toLocaleString()}
-        ========================================
-            `);
+    ========================================
+    EMAIL OTP SENT
+    ========================================
+    Email: ${user_email}
+    OTP: ${plain_otp}
+    Expire At: ${otp_expires_at.toLocaleString()}
+    OTP Count: ${otp_exists.otp_sent_count}/5
+    ========================================
+    `);
     }
 
-    // ! send phone otp
     if (user_phone) {
       console.log(`
-        ========================================
-        PHONE OTP SENT
-        ========================================
-        Phone: ${user_phone}
-        OTP: ${plain_otp}
-        Expire At: ${otp_expires_at.toLocaleString()}
-        ========================================
-        `);
+    ========================================
+    PHONE OTP SENT
+    ========================================
+    Phone: ${user_phone}
+    OTP: ${plain_otp}
+    Expire At: ${otp_expires_at.toLocaleString()}
+    OTP Count: ${otp_exists.otp_sent_count}/5
+    ========================================
+    `);
     }
 
-    return created_otp;
+    return otp_exists;
   },
 
   // ! verify otp
@@ -184,56 +267,108 @@ export const otp_service = {
       ],
     });
 
-    // ! no otp found
+    // ! otp not found
     if (!otp_exists) {
       throw new api_error(httpStatus.BAD_REQUEST, "OTP not found");
     }
 
-    // ! cooldown check
-    if (otp_exists.otp_last_sent_at) {
-      const diff = Date.now() - otp_exists.otp_last_sent_at.getTime();
+    const now = new Date();
 
-      if (diff < 1000 * 60 * 3) {
+    // ! BLOCK CHECK
+    if (otp_exists.otp_blocked_until && otp_exists.otp_blocked_until > now) {
+      const remaining_minutes = Math.ceil(
+        (otp_exists.otp_blocked_until.getTime() - now.getTime()) / (1000 * 60),
+      );
+
+      throw new api_error(
+        httpStatus.TOO_MANY_REQUESTS,
+        `OTP request blocked. Try again after ${remaining_minutes} minutes`,
+      );
+    }
+
+    // ! RESET COUNT AFTER 1 HOUR
+    if (!otp_exists.otp_count_reset_at) {
+      otp_exists.otp_count_reset_at = now;
+    }
+
+    const one_hour_ms = 1000 * 60 * 60;
+
+    const diff_from_reset =
+      now.getTime() - otp_exists.otp_count_reset_at.getTime();
+
+    // ! reset counter after 1 hour
+    if (diff_from_reset >= one_hour_ms) {
+      otp_exists.otp_sent_count = 0;
+
+      otp_exists.otp_count_reset_at = now;
+
+      otp_exists.otp_blocked_until = null;
+    }
+
+    // ! 2 MINUTE COOLDOWN
+    if (otp_exists.otp_last_sent_at) {
+      const two_minutes_ms = 1000 * 60 * 2;
+      //   const two_minutes_ms = 1000 * 1;
+
+      const cooldown_diff =
+        now.getTime() - otp_exists.otp_last_sent_at.getTime();
+
+      if (cooldown_diff < two_minutes_ms) {
+        const remaining_seconds = Math.ceil(
+          (two_minutes_ms - cooldown_diff) / 1000,
+        );
+
+        const minutes = Math.floor(remaining_seconds / 60);
+
+        const seconds = remaining_seconds % 60;
+
         throw new api_error(
           httpStatus.TOO_MANY_REQUESTS,
-          "Please wait before requesting another OTP",
+          `Please wait ${minutes}m ${seconds}s before requesting another OTP`,
         );
       }
     }
 
-    // ! max resend check
+    // ! MAX 5 OTP PER HOUR
     if ((otp_exists.otp_sent_count ?? 0) >= 5) {
+      const blocked_until = new Date();
+
+      // ! block for 30 minutes
+      blocked_until.setMinutes(blocked_until.getMinutes() + 30);
+
+      otp_exists.otp_blocked_until = blocked_until;
+
+      await otp_exists.save();
+
       throw new api_error(
         httpStatus.TOO_MANY_REQUESTS,
-        "Maximum OTP resend limit exceeded",
+        "Maximum OTP request limit exceeded. Blocked for 30 minutes",
       );
     }
 
-    // ! generate otp
+    // ! GENERATE OTP
     const plain_otp = generate_otp();
 
-    // ! hash otp
     const hashed_otp = await bcrypt.hash(plain_otp, 12);
 
-    // ! expire time
     const otp_expires_at = new Date();
 
     otp_expires_at.setMinutes(otp_expires_at.getMinutes() + 5);
 
-    // ! update otp
+    // ! UPDATE OTP
     otp_exists.verify_otp = hashed_otp;
     otp_exists.otp_expires_at = otp_expires_at;
-    otp_exists.otp_last_sent_at = new Date();
+    otp_exists.otp_last_sent_at = now;
     otp_exists.otp_sent_count = (otp_exists.otp_sent_count ?? 0) + 1;
-
     otp_exists.otp_verify_attempts = 0;
-
     otp_exists.request_ip = request_ip;
     otp_exists.request_device = request_device;
+    otp_exists.otp_verified = false;
 
     await otp_exists.save();
 
-    // ! send otp
+    // ! SEND OTP
+
     if (user_email) {
       console.log(`
         ========================================
@@ -241,6 +376,8 @@ export const otp_service = {
         ========================================
         Email: ${user_email}
         OTP: ${plain_otp}
+        Expire At: ${otp_expires_at.toLocaleString()}
+        OTP Count: ${otp_exists.otp_sent_count}/5
         ========================================
         `);
     }
@@ -252,6 +389,8 @@ export const otp_service = {
         ========================================
         Phone: ${user_phone}
         OTP: ${plain_otp}
+        Expire At: ${otp_expires_at.toLocaleString()}
+        OTP Count: ${otp_exists.otp_sent_count}/5
         ========================================
         `);
     }

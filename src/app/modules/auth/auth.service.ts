@@ -1,13 +1,12 @@
-
+import api_error from "@/app/helper/api-error";
 import bcrypt from "bcrypt";
 import httpStatus from "http-status";
-import api_error from "@/app/helper/api-error";
-import { IUserModel } from "./auth.interface";
-import { user } from "./auth.model";
 import { IJwtPayload } from "../../utils/jwt";
 import { token_utils } from "../../utils/token";
 import { otp_service } from "../otp/opt.service";
 import { otp_types } from "../otp/otp.interface";
+import { IUserModel } from "./auth.interface";
+import { user } from "./auth.model";
 
 export const auth_service = {
   // ! register
@@ -298,11 +297,17 @@ export const auth_service = {
   },
 
   // ! login
-  login: async (payload: {
-    user_email?: string;
-    user_phone?: string;
-    user_password: string;
-  }) => {
+  login: async (
+    payload: {
+      user_email?: string;
+      user_phone?: string;
+      user_password: string;
+    },
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+    },
+  ) => {
     const { user_email, user_phone, user_password } = payload;
 
     // ! prevent both
@@ -372,6 +377,29 @@ export const auth_service = {
       throw new api_error(httpStatus.BAD_REQUEST, "Invalid credentials");
     }
 
+    // ! 2FA enabled
+    if (user_exists.two_factor_enabled) {
+      // ! send otp
+      await otp_service.create_and_send({
+        otp_type: otp_types.login_2fa,
+        user_email: user_exists.user_email,
+        user_phone: user_exists.user_phone,
+        request_ip: request_data?.request_ip || "127.0.0.1",
+        request_device: request_data?.request_device || "unknown-device",
+      });
+
+      return {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "2FA OTP sent successfully",
+        data: {
+          requires_2fa: true,
+          user_email: user_exists.user_email,
+          user_phone: user_exists.user_phone,
+        },
+      };
+    }
+
     // ! jwt payload
     const jwt_payload: IJwtPayload = {
       id: user_exists._id.toString(),
@@ -381,7 +409,6 @@ export const auth_service = {
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
-
     const refresh_token = token_utils.create.refresh(jwt_payload);
 
     // ! response
@@ -389,6 +416,69 @@ export const auth_service = {
       success: true,
       statusCode: httpStatus.OK,
       message: "Login successful",
+
+      data: {
+        requires_2fa: false,
+        access_token,
+        refresh_token,
+        user: {
+          _id: user_exists._id,
+          user_name: user_exists.user_name,
+          user_email: user_exists.user_email,
+          user_phone: user_exists.user_phone,
+          email_verified: user_exists.email_verified,
+          phone_verified: user_exists.phone_verified,
+          user_role: user_exists.user_role,
+          user_status: user_exists.user_status,
+        },
+      },
+    };
+  },
+
+  // ! verify login 2fa
+  verify_login_2fa: async (payload: {
+    user_email?: string;
+    user_phone?: string;
+    verify_otp: string;
+  }) => {
+    const { user_email, user_phone, verify_otp } = payload;
+
+    // ! find user
+    const user_exists = await user.findOne({
+      $or: [
+        ...(user_email ? [{ user_email }] : []),
+        ...(user_phone ? [{ user_phone }] : []),
+      ],
+    });
+
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.BAD_REQUEST, "User not found");
+    }
+
+    // ! verify otp
+    await otp_service.verify({
+      otp_type: otp_types.login_2fa,
+      user_email,
+      user_phone,
+      verify_otp,
+    });
+
+    // ! jwt payload
+    const jwt_payload: IJwtPayload = {
+      id: user_exists._id.toString(),
+      role: user_exists.user_role,
+      email_verified: user_exists.email_verified,
+    };
+
+    // ! generate tokens
+    const access_token = token_utils.create.access(jwt_payload);
+    const refresh_token = token_utils.create.refresh(jwt_payload);
+
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "2FA verification successful",
       data: {
         access_token,
         refresh_token,

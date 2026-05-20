@@ -19,6 +19,7 @@ const user_model_schema = new Schema<IUserModel>(
       lowercase: true,
       unique: true,
       sparse: true,
+      default: undefined,
       validate: {
         validator: function (value: string) {
           if (!value) return true;
@@ -28,7 +29,6 @@ const user_model_schema = new Schema<IUserModel>(
         message: "Invalid email address",
       },
     },
-
     email_verified: {
       type: Boolean,
       default: false,
@@ -39,6 +39,7 @@ const user_model_schema = new Schema<IUserModel>(
       trim: true,
       unique: true,
       sparse: true,
+      default: undefined,
       validate: {
         validator: function (value: string) {
           if (!value) return true;
@@ -70,7 +71,6 @@ const user_model_schema = new Schema<IUserModel>(
       minlength: [6, "Password is too short"],
       select: false,
     },
-
 
     two_factor_enabled: {
       type: Boolean,

@@ -8,6 +8,7 @@ import { auth_service } from "./auth.service";
 export const auth_controller = {
   //! register
   register: catch_async(async (req: Request, res: Response) => {
+    console.log("Register controller called with data:", req.body);
     const result = await auth_service.register(req.body);
     send_response(res, {
       status_code: status.OK,
@@ -52,6 +53,26 @@ export const auth_controller = {
   // ! login
   login: catch_async(async (req: Request, res: Response) => {
     const result = await auth_service.login(req.body);
+
+    // ! set refresh token cookie
+    if (result.data.refresh_token) {
+      token_utils.set_cookie.refresh(res, result.data.refresh_token);
+    }
+
+    // ! response
+    res.status(result.statusCode).json({
+      success: result.success,
+      message: result.message,
+      data: {
+        access_token: result.data.access_token,
+        user: result.data.user,
+      },
+    });
+  }),
+
+  //! verify_login_2fa with otp
+  verify_login_2fa: catch_async(async (req: Request, res: Response) => {
+    const result = await auth_service.verify_login_2fa(req.body);
 
     // ! set refresh token cookie
     token_utils.set_cookie.refresh(res, result.data.refresh_token);
