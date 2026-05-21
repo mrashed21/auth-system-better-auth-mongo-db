@@ -31,6 +31,7 @@
     "nodemailer": "^7.0.12",
     "pidusage": "^4.0.1",
     "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.3",
     "ua-parser-js": "^2.0.9",
     "zod": "^4.4.3"
   },
@@ -47,7 +48,6 @@
     "@types/nodemailer": "^7.0.5",
     "@types/pidusage": "^2.0.5",
     "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "tsx": "^4.21.0"
   }
 }
