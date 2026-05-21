@@ -31,8 +31,10 @@ transporter.verify((error, success) => {
 interface SendEmailOptions {
   to: string;
   subject: string;
-  templateName: string;
-  templateData: Record<string, any>;
+  templateName?: string;
+  templateData?: Record<string, any>;
+  html?: string;
+  text?: string;
   attachments?: {
     filename: string;
     content: Buffer | string;
@@ -45,21 +47,26 @@ export const send_email = async ({
   templateData,
   templateName,
   to,
+  html,
+  text,
   attachments,
 }: SendEmailOptions) => {
   try {
-    const templatePath = path.resolve(
-      process.cwd(),
-      `src/templates/${templateName}.ejs`,
-    );
-
-    const html = await ejs.renderFile(templatePath, templateData);
+    const renderedHtml = html
+      ? html
+      : templateName
+        ? await ejs.renderFile(
+            path.resolve(process.cwd(), `src/templates/${templateName}.ejs`),
+            templateData || {},
+          )
+        : undefined;
 
     const info = await transporter.sendMail({
       from: env_config.EMAIL_SENDER_SMTP_FROM,
       to: to,
       subject: subject,
-      html: html,
+      html: renderedHtml,
+      text,
       attachments: attachments?.map((attachment) => ({
         filename: attachment.filename,
         content: attachment.content,

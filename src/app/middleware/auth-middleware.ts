@@ -3,6 +3,7 @@ import status from "http-status";
 import { env_config } from "../config/env-config";
 import api_error from "../helper/api-error";
 import { user_role } from "../modules/auth/auth.interface";
+import { user as user_model } from "../modules/auth/auth.model";
 import { cookie_utils } from "../utils/cookie";
 import { IJwtPayload, jwt_token } from "../utils/jwt";
 
@@ -34,13 +35,37 @@ export const check_auth =
         );
       }
 
+      const current_user = await user_model
+        .findById(verifiedToken.data._id)
+        .select(
+          "user_role user_email user_phone user_status is_deleted password_changed_at",
+        );
+
+      if (!current_user) {
+        throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+      }
+
+      if (current_user.is_deleted || current_user.user_status !== "active") {
+        throw new api_error(status.FORBIDDEN, "Account is not active.");
+      }
+
+      const tokenIssuedAt = verifiedToken.data.iat;
+      if (
+        current_user.password_changed_at &&
+        tokenIssuedAt &&
+        current_user.password_changed_at.getTime() > tokenIssuedAt * 1000
+      ) {
+        throw new api_error(
+          status.UNAUTHORIZED,
+          "Session is no longer valid. Please sign in again.",
+        );
+      }
+
       (req as any).user = {
         _id: verifiedToken.data._id,
-        user_role: verifiedToken.data.user_role,
-        user_email: verifiedToken.data.user_email,
-        user_phone: verifiedToken.data.user_phone,
-        email_verified: verifiedToken.data.user_email_verified,
-        user_phone_verified: verifiedToken.data.user_phone_verified,
+        user_role: current_user.user_role,
+        user_email: current_user.user_email,
+        user_phone: current_user.user_phone,
       };
 
       const user = req.user;

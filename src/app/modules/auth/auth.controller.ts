@@ -15,8 +15,8 @@ export const auth_controller = {
     send_response(res, {
       status_code: status.OK,
       success: true,
-      message: "Users retrieved successfully",
-      data: result,
+      message: result.message,
+      data: result.data,
     });
   }),
 
@@ -74,6 +74,26 @@ export const auth_controller = {
     });
   }),
 
+  //! refresh token
+  refresh_token: catch_async(async (req: Request, res: Response) => {
+    const refresh_token =
+      req.cookies?.refresh_token || req.body?.refresh_token || "";
+    const result = await auth_service.refresh_token(refresh_token);
+
+    token_utils.set_cookie.refresh(res, result.data.refresh_token);
+    token_utils.set_cookie.access(res, result.data.access_token);
+
+    send_response(res, {
+      status_code: result.statusCode,
+      success: result.success,
+      message: result.message,
+      data: {
+        access_token: result.data.access_token,
+        user: result.data.user,
+      },
+    });
+  }),
+
   //! verify_login_2fa with otp
   verify_login_2fa: catch_async(async (req: Request, res: Response) => {
     const result = await auth_service.verify_login_2fa(req.body);
@@ -111,23 +131,9 @@ export const auth_controller = {
 
   // ! logout user
   logout: catch_async(async (req: Request, res: Response) => {
-    const better_auth_session = req.cookies["better-auth.session_token"];
-    // const result = await auth_service.logout(better_auth_session);
-    cookie_utils.clear(res, "access_token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
-    cookie_utils.clear(res, "refresh_token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
-    cookie_utils.clear(res, "better-auth.session_token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
+    token_utils.clear_cookie.access(res);
+    token_utils.clear_cookie.refresh(res);
+    cookie_utils.clear(res, "better-auth.session_token");
 
     send_response(res, {
       status_code: status.OK,
@@ -159,8 +165,8 @@ export const auth_controller = {
     send_response(res, {
       status_code: status.OK,
       success: true,
-      message: "2FA enabled successfully",
-      data: result,
+      message: result.message,
+      data: result.data,
     });
   }),
 
@@ -221,6 +227,93 @@ export const auth_controller = {
       status_code: status.OK,
       success: true,
       message: "Password changed successfully",
+      data: result,
+    });
+  }),
+
+  //! forgot password
+  forgot_password: catch_async(async (req: Request, res: Response) => {
+    const request_data = get_request_info(req);
+    const result = await auth_service.forgot_password(
+      req.body.user_email,
+      req.body.user_phone,
+      {
+        ...request_data,
+        request_device: request_data.request_device
+          ? JSON.stringify(request_data.request_device)
+          : undefined,
+      },
+    );
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  }),
+
+  //! reset password
+  reset_password: catch_async(async (req: Request, res: Response) => {
+    const result = await auth_service.reset_password(
+      req.body.new_password,
+      req.body.verify_otp,
+      req.body.user_email,
+      req.body.user_phone,
+    );
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  }),
+
+  //! change contact request
+  change_contact_request: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+
+    const request_data = get_request_info(req);
+    const result = await auth_service.change_contact_request(
+      user._id,
+      req.body.new_email,
+      req.body.new_phone,
+      {
+        ...request_data,
+        request_device: request_data.request_device
+          ? JSON.stringify(request_data.request_device)
+          : undefined,
+      },
+    );
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  }),
+
+  //! change contact confirm
+  change_contact_confirm: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+
+    const result = await auth_service.change_contact_confirm(
+      user._id,
+      req.body.verify_otp,
+    );
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: result.message,
       data: result,
     });
   }),

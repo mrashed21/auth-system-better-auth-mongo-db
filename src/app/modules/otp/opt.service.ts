@@ -1,12 +1,25 @@
+import { env_config } from "@/app/config/env-config";
 import api_error from "@/app/helper/api-error";
+import { send_email } from "@/app/utils/send-email";
 import bcrypt from "bcryptjs";
+import { randomInt } from "crypto";
 import httpStatus from "http-status";
 import { otp_types } from "./otp.interface";
 import { otp } from "./otp.model";
 
 const generate_otp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 };
+
+const build_otp_email_html = (otp_code: string, expiry: Date) => `
+  <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
+    <h2 style="margin:0 0 12px">Your verification code</h2>
+    <p style="margin:0 0 12px">Use this code to complete your request:</p>
+    <div style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${otp_code}</div>
+    <p style="margin:0 0 12px">This code expires at ${expiry.toLocaleString()}.</p>
+    <p style="margin:0">If you did not request this code, you can ignore this email.</p>
+  </div>
+`;
 
 export const otp_service = {
   // ! create and send otp
@@ -163,19 +176,15 @@ export const otp_service = {
     // ! SEND OTP
 
     if (user_email) {
-      console.log(`
-    ========================================
-    EMAIL OTP SENT
-    ========================================
-    Email: ${user_email}
-    OTP: ${plain_otp}
-    Expire At: ${otp_expires_at.toLocaleString()}
-    OTP Count: ${otp_exists.otp_sent_count}/5
-    ========================================
-    `);
+      await send_email({
+        to: user_email,
+        subject: "Your verification code",
+        html: build_otp_email_html(plain_otp, otp_expires_at),
+        text: `Your verification code is ${plain_otp}. It expires at ${otp_expires_at.toLocaleString()}.`,
+      });
     }
 
-    if (user_phone) {
+    if (user_phone && env_config.NODE_ENV !== "production") {
       console.log(`
     ========================================
     PHONE OTP SENT
@@ -396,19 +405,15 @@ export const otp_service = {
     // ! SEND OTP
 
     if (user_email) {
-      console.log(`
-        ========================================
-        RESEND EMAIL OTP
-        ========================================
-        Email: ${user_email}
-        OTP: ${plain_otp}
-        Expire At: ${otp_expires_at.toLocaleString()}
-        OTP Count: ${otp_exists.otp_sent_count}/5
-        ========================================
-        `);
+      await send_email({
+        to: user_email,
+        subject: "Your verification code",
+        html: build_otp_email_html(plain_otp, otp_expires_at),
+        text: `Your verification code is ${plain_otp}. It expires at ${otp_expires_at.toLocaleString()}.`,
+      });
     }
 
-    if (user_phone) {
+    if (user_phone && env_config.NODE_ENV !== "production") {
       console.log(`
         ========================================
         RESEND PHONE OTP

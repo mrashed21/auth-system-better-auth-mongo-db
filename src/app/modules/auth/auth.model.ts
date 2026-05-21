@@ -68,7 +68,7 @@ const user_model_schema = new Schema<IUserModel>(
     user_password: {
       type: String,
       required: [true, "Password is required"],
-      minlength: [6, "Password is too short"],
+      minlength: [8, "Password is too short"],
       select: false,
     },
 

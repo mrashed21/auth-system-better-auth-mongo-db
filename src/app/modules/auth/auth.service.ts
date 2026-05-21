@@ -8,6 +8,47 @@ import { otp_types } from "../otp/otp.interface";
 import { IUserModel } from "./auth.interface";
 import { user } from "./auth.model";
 
+const build_auth_payload = (user_exists: IUserModel): IJwtPayload => ({
+  _id: user_exists._id.toString(),
+  user_role: user_exists.user_role,
+  user_email: user_exists.user_email,
+  user_phone: user_exists.user_phone,
+  user_email_verified: user_exists.email_verified,
+  user_phone_verified: user_exists.phone_verified,
+});
+
+const build_public_user = (
+  user_exists: Pick<
+    IUserModel,
+    | "_id"
+    | "user_name"
+    | "user_email"
+    | "user_phone"
+    | "user_role"
+    | "user_status"
+    | "email_verified"
+    | "phone_verified"
+  >,
+) => ({
+  _id: user_exists._id,
+  user_name: user_exists.user_name,
+  user_email: user_exists.user_email,
+  user_phone: user_exists.user_phone,
+  user_role: user_exists.user_role,
+  user_status: user_exists.user_status,
+  email_verified: user_exists.email_verified,
+  phone_verified: user_exists.phone_verified,
+});
+
+const assert_account_is_active = (user_exists: {
+  is_deleted?: boolean;
+  user_status?: string;
+}) => {
+  if (user_exists.is_deleted || user_exists.user_status !== "active") {
+    throw new api_error(httpStatus.FORBIDDEN, "Account is not active");
+  }
+};
+
 export const auth_service = {
   // ! register
   register: async (
@@ -22,7 +63,6 @@ export const auth_service = {
       user_email,
       user_phone,
       user_password,
-      user_role,
       user_area,
       user_city,
       user_country,
@@ -79,7 +119,7 @@ export const auth_service = {
       user_email,
       user_phone,
       user_password: hashed_password,
-      user_role: user_role || "user",
+      user_role: "user",
       user_area,
       user_city,
       user_country,
@@ -112,15 +152,7 @@ export const auth_service = {
       statusCode: httpStatus.CREATED,
       message: "User registered successfully",
       data: {
-        user: {
-          _id: created_user._id,
-          user_name: created_user.user_name,
-          user_email: created_user.user_email,
-          user_phone: created_user.user_phone,
-          user_role: created_user.user_role,
-          email_verified: created_user.email_verified,
-          phone_verified: created_user.phone_verified,
-        },
+        user: build_public_user(created_user),
       },
     };
   },
@@ -193,14 +225,7 @@ export const auth_service = {
     await user_exists.save();
 
     // ! jwt payload
-    const jwt_payload: IJwtPayload = {
-      _id: user_exists._id.toString(),
-      user_role: user_exists.user_role,
-      user_email: user_exists.user_email,
-      user_phone: user_exists.user_phone,
-      user_email_verified: user_exists.email_verified,
-      user_phone_verified: user_exists.phone_verified,
-    };
+    const jwt_payload = build_auth_payload(user_exists);
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
@@ -408,14 +433,7 @@ export const auth_service = {
     }
 
     // ! jwt payload
-    const jwt_payload: IJwtPayload = {
-      _id: user_exists._id.toString(),
-      user_role: user_exists.user_role,
-      user_email: user_exists.user_email,
-      user_phone: user_exists.user_phone,
-      user_email_verified: user_exists.email_verified,
-      user_phone_verified: user_exists.phone_verified,
-    };
+    const jwt_payload = build_auth_payload(user_exists);
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
@@ -477,6 +495,15 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
+    assert_account_is_active(user_exists);
+
+    if (!user_exists.two_factor_enabled) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Two-factor authentication is not enabled",
+      );
+    }
+
     const is_email_2fa = user_exists.two_factor_otp_method === "email";
 
     await otp_service.verify({
@@ -489,14 +516,7 @@ export const auth_service = {
       verify_otp,
     });
     // ! jwt payload
-    const jwt_payload: IJwtPayload = {
-      _id: user_exists._id.toString(),
-      user_role: user_exists.user_role,
-      user_email: user_exists.user_email,
-      user_phone: user_exists.user_phone,
-      user_email_verified: user_exists.email_verified,
-      user_phone_verified: user_exists.phone_verified,
-    };
+    const jwt_payload = build_auth_payload(user_exists);
 
     // ! generate tokens
     const access_token = token_utils.create.access(jwt_payload);
@@ -523,6 +543,52 @@ export const auth_service = {
     };
   },
 
+  refresh_token: async (refresh_token: string) => {
+    if (!refresh_token) {
+      throw new api_error(httpStatus.UNAUTHORIZED, "Refresh token is required");
+    }
+
+    const verifiedToken =
+      token_utils.verify.refresh<IJwtPayload>(refresh_token);
+
+    if (!verifiedToken.success || !verifiedToken.data?._id) {
+      throw new api_error(httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
+
+    const user_exists = await user.findById(verifiedToken.data._id);
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.UNAUTHORIZED, "User not found");
+    }
+
+    assert_account_is_active(user_exists);
+
+    const tokenIssuedAt = verifiedToken.data.iat;
+    if (
+      user_exists.password_changed_at &&
+      tokenIssuedAt &&
+      user_exists.password_changed_at.getTime() > tokenIssuedAt * 1000
+    ) {
+      throw new api_error(
+        httpStatus.UNAUTHORIZED,
+        "Refresh token is no longer valid",
+      );
+    }
+
+    const jwt_payload = build_auth_payload(user_exists);
+
+    return {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Token refreshed successfully",
+      data: {
+        access_token: token_utils.create.access(jwt_payload),
+        refresh_token: token_utils.create.refresh(jwt_payload),
+        user: build_public_user(user_exists),
+      },
+    };
+  },
+
   // ! get logged user
   get_me: async (user_id: string) => {
     // ! find user
@@ -536,10 +602,7 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
-    // ! deleted user
-    if (user_exists.is_deleted) {
-      throw new api_error(httpStatus.FORBIDDEN, "Account deleted");
-    }
+    assert_account_is_active(user_exists);
 
     // ! response
     return {
@@ -577,6 +640,10 @@ export const auth_service = {
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
+
+    assert_account_is_active(user_exists);
+
+    assert_account_is_active(user_exists);
 
     // ! validate 2FA method
     if (two_factor_otp_method === "email") {
@@ -628,6 +695,14 @@ export const auth_service = {
 
     user_exists.pending_two_factor_method = two_factor_otp_method;
     await user_exists.save();
+
+    return {
+      success: true,
+      message: "2FA enable OTP sent successfully",
+      data: {
+        two_factor_otp_method,
+      },
+    };
   },
 
   // ! toggle 2fa
@@ -638,6 +713,10 @@ export const auth_service = {
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
+
+    assert_account_is_active(user_exists);
+
+    assert_account_is_active(user_exists);
 
     if (req_body.enabled && user_exists.two_factor_enabled) {
       throw new api_error(
@@ -655,6 +734,13 @@ export const auth_service = {
 
     // ! enabling 2FA
     if (req_body.enabled) {
+      if (!user_exists.pending_two_factor_method) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "No pending 2FA enable request found",
+        );
+      }
+
       const is_email_2fa = user_exists.pending_two_factor_method === "email";
       const otp_verify_to = is_email_2fa
         ? user_exists.user_email
@@ -708,6 +794,10 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
+    assert_account_is_active(user_exists);
+
+    assert_account_is_active(user_exists);
+
     // ! verify old password
     const password_matched = await bcrypt.compare(
       old_password,
@@ -760,6 +850,8 @@ export const auth_service = {
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
+
+    assert_account_is_active(user_exists);
 
     // ! verify 2fa otp
     if (user_exists.two_factor_enabled) {
@@ -844,6 +936,8 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
+    assert_account_is_active(user_exists);
+
     if (user_exists.user_email) {
       if (!user_exists.email_verified) {
         throw new api_error(httpStatus.BAD_REQUEST, "Email is not verified");
@@ -914,6 +1008,8 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
+    assert_account_is_active(user_exists);
+
     const is_email = !!user_exists.user_email;
     const otp_verify_to = is_email
       ? user_exists.user_email
@@ -967,6 +1063,8 @@ export const auth_service = {
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
+
+    assert_account_is_active(user_exists);
 
     if (new_email && new_phone) {
       throw new api_error(
@@ -1050,6 +1148,8 @@ export const auth_service = {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
+    assert_account_is_active(user_exists);
+
     const new_email = user_exists.pending_email;
     const new_phone = user_exists.pending_phone;
 
@@ -1061,7 +1161,9 @@ export const auth_service = {
     }
 
     const is_email = !!new_email;
-    const otp_verify_to = is_email ? new_email : new_phone;
+    const otp_verify_to = is_email
+      ? (new_email as string)
+      : (new_phone as string);
 
     await otp_service.verify({
       otp_type: otp_types.change_contact,
@@ -1072,11 +1174,11 @@ export const auth_service = {
     });
 
     if (is_email) {
-      user_exists.user_email = new_email;
+      user_exists.user_email = new_email as string;
       user_exists.email_verified = true;
       user_exists.pending_email = undefined;
     } else {
-      user_exists.user_phone = new_phone;
+      user_exists.user_phone = new_phone as string;
       user_exists.phone_verified = true;
       user_exists.pending_phone = undefined;
     }
