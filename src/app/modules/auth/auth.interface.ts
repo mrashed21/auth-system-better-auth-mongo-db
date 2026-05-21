@@ -23,6 +23,9 @@ export interface IUserModel {
   user_password: string;
   two_factor_enabled?: boolean;
   two_factor_otp_method?: "email" | "phone";
+  pending_two_factor_method?: "email" | "phone";
+  pending_email?: string;
+  pending_phone?: string;
   user_role: (typeof user_role)[keyof typeof user_role];
   user_area: string;
   user_city: string;

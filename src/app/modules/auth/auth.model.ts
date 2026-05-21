@@ -81,7 +81,24 @@ const user_model_schema = new Schema<IUserModel>(
       enum: ["email", "phone"],
       default: "email",
     },
-
+    pending_two_factor_method: {
+      type: String,
+      enum: ["email", "phone"],
+      default: null,
+    },
+    pending_email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      sparse: true,
+      default: null,
+    },
+    pending_phone: {
+      type: String,
+      trim: true,
+      sparse: true,
+      default: null,
+    },
     user_role: {
       type: String,
       enum: ["user", "admin"],

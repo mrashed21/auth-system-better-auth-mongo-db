@@ -5,8 +5,7 @@ export const otp_types = {
   phone_verify: "phone_verify",
   forgot_password: "forgot_password",
   change_password: "change_password",
-  change_email: "change_email",
-  change_phone: "change_phone",
+  change_contact: "change_contact",
   enable_2fa: "enable_2fa",
   login_2fa: "login_2fa",
 } as const;

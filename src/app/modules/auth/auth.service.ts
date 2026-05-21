@@ -379,11 +379,19 @@ export const auth_service = {
 
     // ! 2FA enabled
     if (user_exists.two_factor_enabled) {
-      // ! send otp
+      const is_email_2fa = user_exists.two_factor_otp_method === "email";
+
+      const otp_send_to = is_email_2fa
+        ? user_exists.user_email
+        : user_exists.user_phone;
+
       await otp_service.create_and_send({
         otp_type: otp_types.login_2fa,
-        user_email: user_exists.user_email,
-        user_phone: user_exists.user_phone,
+
+        ...(is_email_2fa
+          ? { user_email: otp_send_to }
+          : { user_phone: otp_send_to }),
+
         request_ip: request_data?.request_ip || "127.0.0.1",
         request_device: request_data?.request_device || "unknown-device",
       });
@@ -394,8 +402,7 @@ export const auth_service = {
         message: "2FA OTP sent successfully",
         data: {
           requires_2fa: true,
-          user_email: user_exists.user_email,
-          user_phone: user_exists.user_phone,
+          method: user_exists.two_factor_otp_method,
         },
       };
     }
@@ -445,7 +452,20 @@ export const auth_service = {
   }) => {
     const { user_email, user_phone, verify_otp } = payload;
 
-    // ! find user
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
+
     const user_exists = await user.findOne({
       $or: [
         ...(user_email ? [{ user_email }] : []),
@@ -453,19 +473,21 @@ export const auth_service = {
       ],
     });
 
-    // ! user not found
     if (!user_exists) {
-      throw new api_error(httpStatus.BAD_REQUEST, "User not found");
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
-    // ! verify otp
+    const is_email_2fa = user_exists.two_factor_otp_method === "email";
+
     await otp_service.verify({
       otp_type: otp_types.login_2fa,
-      user_email,
-      user_phone,
+
+      ...(is_email_2fa
+        ? { user_email: user_exists.user_email }
+        : { user_phone: user_exists.user_phone }),
+
       verify_otp,
     });
-
     // ! jwt payload
     const jwt_payload: IJwtPayload = {
       _id: user_exists._id.toString(),
@@ -595,20 +617,16 @@ export const auth_service = {
       ? user_exists.user_email
       : user_exists.user_phone;
 
-    if (user_exists) {
-      await otp_service.create_and_send({
-        otp_type: otp_types.enable_2fa,
-        ...(is_email_2fa
-          ? { user_email: otp_send_to }
-          : { user_phone: otp_send_to }),
-        request_ip: request_data?.request_ip || "127.0.0.1",
-        request_device: request_data?.request_device || "unknown-device",
-        user_agent: request_data?.user_agent || "unknown-user-agent",
-      });
-    }
+    await otp_service.create_and_send({
+      otp_type: otp_types.enable_2fa,
+      ...(is_email_2fa
+        ? { user_email: otp_send_to }
+        : { user_phone: otp_send_to }),
+      request_ip: request_data?.request_ip || "127.0.0.1",
+      request_device: request_data?.request_device || "unknown-device",
+    });
 
-    // ! update 2fa
-    user_exists.two_factor_otp_method = two_factor_otp_method;
+    user_exists.pending_two_factor_method = two_factor_otp_method;
     await user_exists.save();
   },
 
@@ -620,9 +638,24 @@ export const auth_service = {
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
+
+    if (req_body.enabled && user_exists.two_factor_enabled) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Two-factor authentication is already enabled",
+      );
+    }
+
+    if (!req_body.enabled && !user_exists.two_factor_enabled) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Two-factor authentication is already disabled",
+      );
+    }
+
     // ! enabling 2FA
     if (req_body.enabled) {
-      const is_email_2fa = user_exists.two_factor_otp_method === "email";
+      const is_email_2fa = user_exists.pending_two_factor_method === "email";
       const otp_verify_to = is_email_2fa
         ? user_exists.user_email
         : user_exists.user_phone;
@@ -639,7 +672,19 @@ export const auth_service = {
     }
 
     // ! update 2fa status
-    user_exists.two_factor_enabled = req_body.enabled;
+    if (req_body.enabled) {
+      user_exists.two_factor_enabled = true;
+
+      if (user_exists.pending_two_factor_method) {
+        user_exists.two_factor_otp_method =
+          user_exists.pending_two_factor_method;
+
+        user_exists.pending_two_factor_method = undefined;
+      }
+    } else {
+      user_exists.two_factor_enabled = false;
+    }
+
     await user_exists.save();
 
     return {
@@ -710,7 +755,7 @@ export const auth_service = {
     verify_otp?: string,
   ) => {
     // ! find user
-    const user_exists = await user.findById(user_id);
+    const user_exists = await user.findById(user_id).select("+user_password");
 
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
@@ -739,6 +784,18 @@ export const auth_service = {
       });
     }
 
+    const current_password_match = await bcrypt.compare(
+      new_password,
+      user_exists.user_password,
+    );
+
+    if (current_password_match) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "New password must be different from current password",
+      );
+    }
+
     // ! hash password
     const hashed_new_password = await bcrypt.hash(new_password, 12);
 
@@ -753,6 +810,282 @@ export const auth_service = {
     return {
       success: true,
       message: "Password changed successfully",
+    };
+  },
+
+  //! forgot password
+  forgot_password: async (
+    user_email?: string,
+    user_phone?: string,
+    request_data?: any,
+  ) => {
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
+    // ! find user
+    const user_exists = await user.findOne({
+      $or: [
+        ...(user_email ? [{ user_email }] : []),
+        ...(user_phone ? [{ user_phone }] : []),
+      ],
+    });
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    if (user_exists.user_email) {
+      if (!user_exists.email_verified) {
+        throw new api_error(httpStatus.BAD_REQUEST, "Email is not verified");
+      }
+    } else if (user_exists.user_phone) {
+      if (!user_exists.phone_verified) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "Phone number is not verified",
+        );
+      }
+    } else {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "No email or phone number associated with this account",
+      );
+    }
+
+    const is_email = !!user_exists.user_email;
+    const otp_send_to = is_email
+      ? user_exists.user_email
+      : user_exists.user_phone;
+    // ! send otp
+    await otp_service.create_and_send({
+      otp_type: otp_types.forgot_password,
+      ...(is_email ? { user_email: otp_send_to } : { user_phone: otp_send_to }),
+      request_ip: request_data?.request_ip || "127.0.0.1",
+      request_device: request_data?.request_device || "unknown-device",
+    });
+    return {
+      success: true,
+      message:
+        "Password reset OTP sent to your " + (is_email ? "email" : "phone"),
+    };
+  },
+
+  //! reset password
+  reset_password: async (
+    new_password: string,
+    verify_otp: string,
+    user_email?: string,
+    user_phone?: string,
+  ) => {
+    if (user_email && user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    if (!user_email && !user_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Email or phone number is required",
+      );
+    }
+    // ! find user
+    const user_exists = await user
+      .findOne({
+        $or: [
+          ...(user_email ? [{ user_email }] : []),
+          ...(user_phone ? [{ user_phone }] : []),
+        ],
+      })
+      .select("+user_password");
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    const is_email = !!user_exists.user_email;
+    const otp_verify_to = is_email
+      ? user_exists.user_email
+      : user_exists.user_phone;
+    // ! verify otp
+    await otp_service.verify({
+      otp_type: otp_types.forgot_password,
+      ...(is_email
+        ? { user_email: otp_verify_to }
+        : { user_phone: otp_verify_to }),
+      verify_otp,
+    });
+
+    const same_password = await bcrypt.compare(
+      new_password,
+      user_exists.user_password,
+    );
+
+    if (same_password) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "New password must be different from current password",
+      );
+    }
+
+    // ! hash password
+    const hashed_new_password = await bcrypt.hash(new_password, 12);
+
+    // ! update password
+    user_exists.user_password = hashed_new_password;
+
+    // ! logout all devices (recommended)
+    user_exists.password_changed_at = new Date();
+    await user_exists.save();
+
+    return {
+      success: true,
+      message: "Password reset successfully",
+    };
+  },
+
+  // ! change email or phone number request
+  change_contact_request: async (
+    user_id: string,
+    new_email?: string,
+    new_phone?: string,
+    request_data?: any,
+  ) => {
+    // ! find user
+    const user_exists = await user.findById(user_id);
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    if (new_email && new_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "Provide either email or phone number",
+      );
+    }
+
+    if (!new_email && !new_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "New email or phone number is required",
+      );
+    }
+
+    if (new_email) {
+      if (user_exists.user_email === new_email) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "New email is the same as the current email",
+        );
+      }
+      const email_exists = await user.findOne({
+        user_email: new_email,
+      });
+      if (email_exists) {
+        throw new api_error(httpStatus.BAD_REQUEST, "Email already in use");
+      }
+    } else if (new_phone) {
+      if (user_exists.user_phone === new_phone) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "New phone number is the same as the current phone number",
+        );
+      }
+      const phone_exists = await user.findOne({
+        user_phone: new_phone,
+      });
+      if (phone_exists) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "Phone number already in use",
+        );
+      }
+    } else {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "New email or phone number is required",
+      );
+    }
+
+    if (new_email) {
+      user_exists.pending_email = new_email;
+    }
+
+    if (new_phone) {
+      user_exists.pending_phone = new_phone;
+    }
+
+    await user_exists.save();
+    // ! send otp to new contact
+    const is_email = !!new_email;
+    const otp_send_to = is_email ? new_email : new_phone;
+    await otp_service.create_and_send({
+      otp_type: otp_types.change_contact,
+      ...(is_email ? { user_email: otp_send_to } : { user_phone: otp_send_to }),
+      request_ip: request_data?.request_ip || "127.0.0.1",
+      request_device: request_data?.request_device || "unknown-device",
+    });
+    return {
+      success: true,
+      message: "OTP sent to your " + (is_email ? "email" : "phone"),
+    };
+  },
+
+  // ! confirm email or phone number change
+  change_contact_confirm: async (user_id: string, verify_otp: string) => {
+    const user_exists = await user.findById(user_id);
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    const new_email = user_exists.pending_email;
+    const new_phone = user_exists.pending_phone;
+
+    if (!new_email && !new_phone) {
+      throw new api_error(
+        httpStatus.BAD_REQUEST,
+        "No pending contact change request found",
+      );
+    }
+
+    const is_email = !!new_email;
+    const otp_verify_to = is_email ? new_email : new_phone;
+
+    await otp_service.verify({
+      otp_type: otp_types.change_contact,
+      ...(is_email
+        ? { user_email: otp_verify_to }
+        : { user_phone: otp_verify_to }),
+      verify_otp,
+    });
+
+    if (is_email) {
+      user_exists.user_email = new_email;
+      user_exists.email_verified = true;
+      user_exists.pending_email = undefined;
+    } else {
+      user_exists.user_phone = new_phone;
+      user_exists.phone_verified = true;
+      user_exists.pending_phone = undefined;
+    }
+
+    await user_exists.save();
+
+    return {
+      success: true,
+      message: `${is_email ? "Email" : "Phone number"} changed successfully`,
     };
   },
 };
