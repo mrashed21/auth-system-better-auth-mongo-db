@@ -138,7 +138,6 @@ export const auth_controller = {
   }),
 
   //! enable_2fa
-
   enable_2fa: catch_async(async (req: Request, res: Response) => {
     const user = req.user;
 
@@ -161,6 +160,21 @@ export const auth_controller = {
       status_code: status.OK,
       success: true,
       message: "2FA enabled successfully",
+      data: result,
+    });
+  }),
+
+  // ! toggle 2fa
+  toggle_2fa: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+    const result = await auth_service.toggle_2fa(user._id, req.body);
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "2FA toggled successfully",
       data: result,
     });
   }),

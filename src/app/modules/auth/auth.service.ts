@@ -588,8 +588,8 @@ export const auth_service = {
         );
       }
     }
-    //! send code to enable 2FA
 
+    //! send code to enable 2FA
     const is_email_2fa = two_factor_otp_method === "email";
     const otp_send_to = is_email_2fa
       ? user_exists.user_email
@@ -613,23 +613,16 @@ export const auth_service = {
   },
 
   // ! toggle 2fa
-  toggle_2fa: async (
-    user_id: string,
-    enable_2fa: boolean,
-    verify_otp: string,
-  ) => {
+  toggle_2fa: async (user_id: string, req_body: any) => {
     // ! find user
     const user_exists = await user.findById(user_id);
-
     // ! user not found
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
-
     // ! enabling 2FA
-    if (enable_2fa) {
+    if (req_body.enabled) {
       const is_email_2fa = user_exists.two_factor_otp_method === "email";
-
       const otp_verify_to = is_email_2fa
         ? user_exists.user_email
         : user_exists.user_phone;
@@ -641,18 +634,17 @@ export const auth_service = {
           ? { user_email: otp_verify_to }
           : { user_phone: otp_verify_to }),
 
-        verify_otp,
+        verify_otp: req_body.verify_otp,
       });
     }
 
     // ! update 2fa status
-    user_exists.two_factor_enabled = enable_2fa;
-
+    user_exists.two_factor_enabled = req_body.enabled;
     await user_exists.save();
 
     return {
       success: true,
-      message: enable_2fa
+      message: req_body.enabled
         ? "Two-factor authentication enabled successfully"
         : "Two-factor authentication disabled successfully",
     };
