@@ -209,7 +209,7 @@ export const toggle_2fa_schema = z
   });
 
 export const change_password_request_schema = z.object({
-  old_password: password_field,
+  current_password: password_field,
 });
 
 export const confirm_password_change_schema = z.object({

@@ -11,7 +11,14 @@ import { auth_service } from "./auth.service";
 export const auth_controller = {
   //! register
   register: catch_async(async (req: Request, res: Response) => {
-    const result = await auth_service.register(req.body);
+    const request_data = get_request_info(req);
+
+    const result = await auth_service.register(req.body, {
+      ...request_data,
+      request_device: request_data.request_device
+        ? JSON.stringify(request_data.request_device)
+        : undefined,
+    });
     send_response(res, {
       status_code: status.OK,
       success: true,
@@ -52,7 +59,13 @@ export const auth_controller = {
 
   // ! login
   login: catch_async(async (req: Request, res: Response) => {
-    const result = await auth_service.login(req.body);
+    const request_data = get_request_info(req);
+    const result = await auth_service.login(req.body, {
+      ...request_data,
+      request_device: request_data.request_device
+        ? JSON.stringify(request_data.request_device)
+        : undefined,
+    });
 
     // ! set refresh token cookie
     if (result.data.refresh_token) {
@@ -200,7 +213,7 @@ export const auth_controller = {
     const request_data = get_request_info(req);
     const result = await auth_service.change_password_request(
       user._id,
-      req.body.old_password,
+      req.body.current_password,
       {
         ...request_data,
         request_device: request_data.request_device

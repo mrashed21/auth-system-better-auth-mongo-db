@@ -56,6 +56,7 @@ export const auth_service = {
     request_data?: {
       request_ip?: string;
       request_device?: string;
+      user_agent?: string;
     },
   ) => {
     const {
@@ -136,6 +137,7 @@ export const auth_service = {
         user_phone,
         request_ip: request_data?.request_ip || "127.0.0.1",
         request_device: request_data?.request_device || "unknown-device",
+        user_agent: request_data?.user_agent || "unknown-user-agent",
       });
     } catch (error) {
       // ! rollback user if otp failed
@@ -331,6 +333,7 @@ export const auth_service = {
     request_data?: {
       request_ip?: string;
       request_device?: string;
+      user_agent?: string;
     },
   ) => {
     const { user_email, user_phone, user_password } = payload;
@@ -419,6 +422,7 @@ export const auth_service = {
 
         request_ip: request_data?.request_ip || "127.0.0.1",
         request_device: request_data?.request_device || "unknown-device",
+        user_agent: request_data?.user_agent || "unknown-user-agent",
       });
 
       return {
@@ -691,6 +695,7 @@ export const auth_service = {
         : { user_phone: otp_send_to }),
       request_ip: request_data?.request_ip || "127.0.0.1",
       request_device: request_data?.request_device || "unknown-device",
+      user_agent: request_data?.user_agent || "unknown-user-agent",
     });
 
     user_exists.pending_two_factor_method = two_factor_otp_method;
@@ -784,7 +789,7 @@ export const auth_service = {
   // ! request password change
   change_password_request: async (
     user_id: string,
-    old_password: string,
+    current_password: string,
     request_data?: any,
   ) => {
     // ! find user
@@ -800,7 +805,7 @@ export const auth_service = {
 
     // ! verify old password
     const password_matched = await bcrypt.compare(
-      old_password,
+      current_password,
       user_exists.user_password,
     );
 
@@ -909,7 +914,11 @@ export const auth_service = {
   forgot_password: async (
     user_email?: string,
     user_phone?: string,
-    request_data?: any,
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+      user_agent?: string;
+    },
   ) => {
     if (user_email && user_phone) {
       throw new api_error(
@@ -966,6 +975,7 @@ export const auth_service = {
       ...(is_email ? { user_email: otp_send_to } : { user_phone: otp_send_to }),
       request_ip: request_data?.request_ip || "127.0.0.1",
       request_device: request_data?.request_device || "unknown-device",
+      user_agent: request_data?.user_agent || "unknown-user-agent",
     });
     return {
       success: true,
