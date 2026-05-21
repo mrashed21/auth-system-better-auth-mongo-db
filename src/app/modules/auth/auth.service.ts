@@ -125,7 +125,7 @@ export const auth_service = {
     };
   },
 
-  // ! verify otp
+  // ! verify otp for email or phone verification during registration
   verify_otp: async (payload: {
     user_email?: string;
     user_phone?: string;
@@ -228,7 +228,7 @@ export const auth_service = {
     };
   },
 
-  // ! resend otp
+  // ! resend otp for email or phone verification during registration
   resend_otp: async (
     payload: {
       user_email?: string;
@@ -282,12 +282,9 @@ export const auth_service = {
     // ! resend otp
     await otp_service.resend({
       otp_type: user_email ? otp_types.email_verify : otp_types.phone_verify,
-
       user_email,
       user_phone,
-
       request_ip: request_data?.request_ip || "127.0.0.1",
-
       request_device: request_data?.request_device || "unknown-device",
     });
 
@@ -422,7 +419,6 @@ export const auth_service = {
       success: true,
       statusCode: httpStatus.OK,
       message: "Login successful",
-
       data: {
         requires_2fa: false,
         access_token,
@@ -542,4 +538,132 @@ export const auth_service = {
   //     success: true,
   //   };
   // },
+
+  // ! enable or disable 2fa
+  enable_2fa: async (
+    user_id: string,
+    two_factor_otp_method: "email" | "phone",
+    request_data?: any,
+  ) => {
+    // ! find user
+    const user_exists = await user.findById(user_id);
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    // ! validate 2FA method
+    if (two_factor_otp_method === "email") {
+      if (!user_exists.user_email) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "No email address is associated with this account",
+        );
+      }
+
+      if (!user_exists.email_verified) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "Email address is not verified",
+        );
+      }
+    }
+
+    if (two_factor_otp_method === "phone") {
+      if (!user_exists.user_phone) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "No phone number is associated with this account",
+        );
+      }
+
+      if (!user_exists.phone_verified) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "Phone number is not verified",
+        );
+      }
+    }
+    //! send code to enable 2FA
+
+    const is_email_2fa = two_factor_otp_method === "email";
+    const otp_send_to = is_email_2fa
+      ? user_exists.user_email
+      : user_exists.user_phone;
+
+    if (user_exists) {
+      await otp_service.create_and_send({
+        otp_type: otp_types.enable_2fa,
+        ...(is_email_2fa
+          ? { user_email: otp_send_to }
+          : { user_phone: otp_send_to }),
+        request_ip: request_data?.request_ip || "127.0.0.1",
+        request_device: request_data?.request_device || "unknown-device",
+      });
+    }
+
+    // ! update 2fa
+    user_exists.two_factor_otp_method = two_factor_otp_method;
+    await user_exists.save();
+  },
+
+  // ! toogle 2fa
+  toggle_2fa: async (user_id: string, enable_2fa: boolean , verify_otp:string) => {
+    // ! find user
+    const user_exists = await user.findById(user_id);
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+    // ! if enabling 2fa, ensure email or phone is verified
+    if (enable_2fa) {
+      if (!user_exists.email_verified && !user_exists.phone_verified) {
+        throw new api_error(
+          httpStatus.BAD_REQUEST,
+          "Verify email or phone before enabling 2FA",
+        );
+      }
+    }
+
+    // ! verify otp
+    await otp_service.verify({
+      otp_type: otp_types.enable_2fa,
+      user_email: user_exists.user_email,
+      user_phone: user_exists.user_phone,
+      verify_otp,
+    });
+    
+    // ! update 2fa
+    user_exists.two_factor_enabled = enable_2fa;
+    await user_exists.save();
+  },
+  
+  // !change password
+  change_password: async (
+    user_id: string,
+    old_password: string,
+    new_password: string,
+  ) => {
+    // ! find user
+    const user_exists = await user.findById(user_id).select("+user_password");
+    // ! user not found
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    // ! compare old password
+    const password_matched = await bcrypt.compare(
+      old_password,
+      user_exists.user_password,
+    );
+    // ! invalid old password
+    if (!password_matched) {
+      throw new api_error(httpStatus.BAD_REQUEST, "Invalid old password");
+    }
+    // ! hash new password
+    const hashed_new_password = await bcrypt.hash(new_password, 12);
+    // ! update password
+    user_exists.user_password = hashed_new_password;
+    await user_exists.save();
+  },
 };

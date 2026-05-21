@@ -223,20 +223,16 @@ export const otp_service = {
       // ! block after 5 attempts
       if (otp_exists.otp_verify_attempts >= 5) {
         const blocked_until = new Date();
-
         blocked_until.setMinutes(blocked_until.getMinutes() + 15);
-
         otp_exists.otp_blocked_until = blocked_until;
       }
 
       await otp_exists.save();
-
       throw new api_error(httpStatus.BAD_REQUEST, "Invalid OTP");
     }
 
     // ! verified
     otp_exists.otp_verified = true;
-
     await otp_exists.save();
 
     // ! delete otp after verify

@@ -76,6 +76,11 @@ const user_model_schema = new Schema<IUserModel>(
       type: Boolean,
       default: false,
     },
+    two_factor_otp_method: {
+      type: String,
+      enum: ["email", "phone"],
+      default: "email",
+    },
 
     user_role: {
       type: String,
