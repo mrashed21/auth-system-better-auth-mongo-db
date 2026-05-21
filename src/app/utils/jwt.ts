@@ -1,5 +1,3 @@
-// jwt.ts
-
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
 
 export interface IJwtPayload extends JwtPayload {
@@ -20,30 +18,57 @@ export const jwt_token = {
     });
   },
 
-  // ! verify token
-  verify: <T extends JwtPayload>(
-    token: string,
-    secret: string,
-  ): {
-    success: boolean;
-    data?: T;
-    message?: string;
-    error?: unknown;
-  } => {
-    try {
-      const decoded = jwt.verify(token, secret) as T;
+  // !  verify token
+  verify: {
+    access: <T extends JwtPayload>(
+      token: string,
+      secret: string,
+    ): {
+      success: boolean;
+      data?: T;
+      message?: string;
+      error?: unknown;
+    } => {
+      try {
+        const decoded = jwt.verify(token, secret) as T;
 
-      return {
-        success: true,
-        data: decoded,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error?.message || "Token verification failed",
-        error,
-      };
-    }
+        return {
+          success: true,
+          data: decoded,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: error.message,
+          error,
+        };
+      }
+    },
+
+    refresh: <T extends JwtPayload>(
+      token: string,
+      secret: string,
+    ): {
+      success: boolean;
+      data?: T;
+      message?: string;
+      error?: unknown;
+    } => {
+      try {
+        const decoded = jwt.verify(token, secret) as T;
+
+        return {
+          success: true,
+          data: decoded,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: error.message,
+          error,
+        };
+      }
+    },
   },
 
   // ! decode token

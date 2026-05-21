@@ -61,6 +61,10 @@ export const auth_controller = {
     if (result.data.refresh_token) {
       token_utils.set_cookie.refresh(res, result.data.refresh_token);
     }
+    // ! set access token cookie
+    if (result.data.access_token) {
+      token_utils.set_cookie.access(res, result.data.access_token);
+    }
 
     // ! response
     res.status(result.statusCode).json({
@@ -79,7 +83,8 @@ export const auth_controller = {
 
     // ! set refresh token cookie
     token_utils.set_cookie.refresh(res, result.data.refresh_token);
-
+    // ! set access token cookie
+    token_utils.set_cookie.access(res, result.data.access_token);
     // ! response
     res.status(result.statusCode).json({
       success: result.success,
@@ -92,8 +97,8 @@ export const auth_controller = {
   }),
   // ! get logged user
   get_me: catch_async(async (req: Request, res: Response) => {
+    console.log("Get me controller called for body:", req.user);
     const { _id: user_id } = req.user;
-    console.log("Get me controller called for user ID:", user_id);
     const result = await auth_service.get_me(user_id);
     send_response(res, {
       status_code: status.OK,
