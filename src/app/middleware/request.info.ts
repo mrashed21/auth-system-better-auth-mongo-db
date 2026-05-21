@@ -21,7 +21,6 @@ export const get_request_info = (req: Request) => {
 
   return {
     request_ip,
-
     request_device: {
       browser: `${browser.name || "unknown"} ${browser.version || ""}`,
       os: `${os.name || "unknown"} ${os.version || ""}`,
@@ -29,7 +28,6 @@ export const get_request_info = (req: Request) => {
       device_vendor: device.vendor || "",
       device_model: device.model || "",
     },
-
     user_agent,
   };
 };

@@ -16,6 +16,7 @@ export const otp_service = {
     user_phone?: string;
     request_ip: string;
     request_device: string;
+    user_agent?: string;
   }) => {
     const { otp_type, user_email, user_phone, request_ip, request_device } =
       payload;
@@ -116,7 +117,17 @@ export const otp_service = {
       otp_exists.otp_sent_count = (otp_exists.otp_sent_count ?? 0) + 1;
       otp_exists.otp_verify_attempts = 0;
       otp_exists.request_ip = request_ip;
-      otp_exists.request_device = request_device;
+      otp_exists.request_device =
+        typeof request_device === "string"
+          ? {
+              browser: "",
+              os: "",
+              device_type: "",
+              device_vendor: "",
+              device_model: request_device,
+            }
+          : request_device;
+      otp_exists.user_agent = payload.user_agent || "";
 
       await otp_exists.save();
     }
@@ -135,7 +146,17 @@ export const otp_service = {
         otp_last_sent_at: now,
         otp_count_reset_at: now,
         request_ip,
-        request_device,
+        request_device:
+          typeof request_device === "string"
+            ? {
+                browser: "",
+                os: "",
+                device_type: "",
+                device_vendor: "",
+                device_model: request_device,
+              }
+            : request_device,
+        user_agent: payload.user_agent || "",
       });
     }
 
@@ -358,7 +379,16 @@ export const otp_service = {
     otp_exists.otp_sent_count = (otp_exists.otp_sent_count ?? 0) + 1;
     otp_exists.otp_verify_attempts = 0;
     otp_exists.request_ip = request_ip;
-    otp_exists.request_device = request_device;
+    otp_exists.request_device =
+      typeof request_device === "string"
+        ? {
+            browser: "",
+            os: "",
+            device_type: "",
+            device_vendor: "",
+            device_model: request_device,
+          }
+        : request_device;
     otp_exists.otp_verified = false;
 
     await otp_exists.save();

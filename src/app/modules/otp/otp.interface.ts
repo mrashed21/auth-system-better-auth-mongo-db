@@ -24,7 +24,14 @@ export interface IOTPModel {
   otp_count_reset_at?: Date | null;
   otp_blocked_until?: Date | null;
   request_ip: string;
-  request_device: string;
+  request_device: {
+    browser: string;
+    os: string;
+    device_type: string;
+    device_vendor: string;
+    device_model: string;
+  };
+  user_agent: string;
   created_at?: Date;
   updated_at?: Date;
 }

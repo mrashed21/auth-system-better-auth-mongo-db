@@ -89,6 +89,16 @@ const otp_model_schema = new Schema<IOTPModel>(
     },
 
     request_device: {
+      type: {
+        browser: String,
+        os: String,
+        device_type: String,
+        device_vendor: String,
+        device_model: String,
+      },
+      required: true,
+    },
+    user_agent: {
       type: String,
       required: true,
       trim: true,

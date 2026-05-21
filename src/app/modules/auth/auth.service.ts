@@ -539,11 +539,15 @@ export const auth_service = {
   //   };
   // },
 
-  // ! enable or disable 2fa
+  // ! enable  2fa
   enable_2fa: async (
     user_id: string,
     two_factor_otp_method: "email" | "phone",
-    request_data?: any,
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+      user_agent?: string;
+    },
   ) => {
     // ! find user
     const user_exists = await user.findById(user_id);
@@ -599,6 +603,7 @@ export const auth_service = {
           : { user_phone: otp_send_to }),
         request_ip: request_data?.request_ip || "127.0.0.1",
         request_device: request_data?.request_device || "unknown-device",
+        user_agent: request_data?.user_agent || "unknown-user-agent",
       });
     }
 
@@ -607,37 +612,52 @@ export const auth_service = {
     await user_exists.save();
   },
 
-  // ! toogle 2fa
-  toggle_2fa: async (user_id: string, enable_2fa: boolean , verify_otp:string) => {
+  // ! toggle 2fa
+  toggle_2fa: async (
+    user_id: string,
+    enable_2fa: boolean,
+    verify_otp: string,
+  ) => {
     // ! find user
     const user_exists = await user.findById(user_id);
+
     // ! user not found
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
-    // ! if enabling 2fa, ensure email or phone is verified
+
+    // ! enabling 2FA
     if (enable_2fa) {
-      if (!user_exists.email_verified && !user_exists.phone_verified) {
-        throw new api_error(
-          httpStatus.BAD_REQUEST,
-          "Verify email or phone before enabling 2FA",
-        );
-      }
+      const is_email_2fa = user_exists.two_factor_otp_method === "email";
+
+      const otp_verify_to = is_email_2fa
+        ? user_exists.user_email
+        : user_exists.user_phone;
+
+      // ! verify otp
+      await otp_service.verify({
+        otp_type: otp_types.enable_2fa,
+        ...(is_email_2fa
+          ? { user_email: otp_verify_to }
+          : { user_phone: otp_verify_to }),
+
+        verify_otp,
+      });
     }
 
-    // ! verify otp
-    await otp_service.verify({
-      otp_type: otp_types.enable_2fa,
-      user_email: user_exists.user_email,
-      user_phone: user_exists.user_phone,
-      verify_otp,
-    });
-    
-    // ! update 2fa
+    // ! update 2fa status
     user_exists.two_factor_enabled = enable_2fa;
+
     await user_exists.save();
+
+    return {
+      success: true,
+      message: enable_2fa
+        ? "Two-factor authentication enabled successfully"
+        : "Two-factor authentication disabled successfully",
+    };
   },
-  
+
   // !change password
   change_password: async (
     user_id: string,

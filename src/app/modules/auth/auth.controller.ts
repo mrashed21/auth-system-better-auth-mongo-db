@@ -11,7 +11,6 @@ import { auth_service } from "./auth.service";
 export const auth_controller = {
   //! register
   register: catch_async(async (req: Request, res: Response) => {
-    const request_info = get_request_info(req);
     const result = await auth_service.register(req.body);
     send_response(res, {
       status_code: status.OK,
@@ -25,11 +24,9 @@ export const auth_controller = {
   verify_otp: catch_async(async (req: Request, res: Response) => {
     const result = await auth_service.verify_otp(req.body);
     // ! set refresh token cookie
-
     token_utils.set_cookie.refresh(res, result.data.refresh_token);
 
     // ! send response
-
     send_response(res, {
       status_code: status.OK,
       success: true,
@@ -137,6 +134,34 @@ export const auth_controller = {
       success: true,
       message: "User logged out successfully",
       // data: result,
+    });
+  }),
+
+  //! enable_2fa
+
+  enable_2fa: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+
+    const request_data = get_request_info(req);
+    const result = await auth_service.enable_2fa(
+      user._id,
+      req.body.two_factor_otp_method,
+      {
+        ...request_data,
+        request_device: request_data.request_device
+          ? JSON.stringify(request_data.request_device)
+          : undefined,
+      },
+    );
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "2FA enabled successfully",
+      data: result,
     });
   }),
 };
