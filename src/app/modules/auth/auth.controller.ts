@@ -178,4 +178,50 @@ export const auth_controller = {
       data: result,
     });
   }),
+
+  //! change_password_request
+  change_password_request: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+
+    const request_data = get_request_info(req);
+    const result = await auth_service.change_password_request(
+      user._id,
+      req.body.old_password,
+      {
+        ...request_data,
+        request_device: request_data.request_device
+          ? JSON.stringify(request_data.request_device)
+          : undefined,
+      },
+    );
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "Password change request successful",
+      data: result,
+    });
+  }),
+
+  // ! confirm password change
+
+  confirm_password_change: catch_async(async (req: Request, res: Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+    const result = await auth_service.change_password_confirm(
+      user._id,
+      req.body.new_password,
+      req.body.verify_otp,
+    );
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "Password changed successfully",
+      data: result,
+    });
+  }),
 };

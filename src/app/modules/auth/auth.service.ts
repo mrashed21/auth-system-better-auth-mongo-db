@@ -650,32 +650,109 @@ export const auth_service = {
     };
   },
 
-  // !change password
-  change_password: async (
+  // ! request password change
+  change_password_request: async (
     user_id: string,
     old_password: string,
-    new_password: string,
+    request_data?: any,
   ) => {
     // ! find user
     const user_exists = await user.findById(user_id).select("+user_password");
-    // ! user not found
+
     if (!user_exists) {
       throw new api_error(httpStatus.NOT_FOUND, "User not found");
     }
 
-    // ! compare old password
+    // ! verify old password
     const password_matched = await bcrypt.compare(
       old_password,
       user_exists.user_password,
     );
-    // ! invalid old password
+
     if (!password_matched) {
       throw new api_error(httpStatus.BAD_REQUEST, "Invalid old password");
     }
-    // ! hash new password
+
+    // ! if 2fa disabled, no otp needed
+    if (!user_exists.two_factor_enabled) {
+      return {
+        require_2fa: false,
+      };
+    }
+
+    const is_email_2fa = user_exists.two_factor_otp_method === "email";
+
+    const otp_send_to = is_email_2fa
+      ? user_exists.user_email
+      : user_exists.user_phone;
+
+    // ! send otp
+    await otp_service.create_and_send({
+      otp_type: otp_types.change_password,
+
+      ...(is_email_2fa
+        ? { user_email: otp_send_to }
+        : { user_phone: otp_send_to }),
+
+      request_ip: request_data?.request_ip || "127.0.0.1",
+      request_device: request_data?.request_device || "unknown-device",
+    });
+
+    return {
+      require_2fa: true,
+    };
+  },
+
+  // ! confirm password change
+  change_password_confirm: async (
+    user_id: string,
+    new_password: string,
+    verify_otp?: string,
+  ) => {
+    // ! find user
+    const user_exists = await user.findById(user_id);
+
+    if (!user_exists) {
+      throw new api_error(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    // ! verify 2fa otp
+    if (user_exists.two_factor_enabled) {
+      if (!verify_otp) {
+        throw new api_error(httpStatus.BAD_REQUEST, "OTP is required");
+      }
+
+      const is_email_2fa = user_exists.two_factor_otp_method === "email";
+
+      const otp_verify_to = is_email_2fa
+        ? user_exists.user_email
+        : user_exists.user_phone;
+
+      await otp_service.verify({
+        otp_type: otp_types.change_password,
+
+        ...(is_email_2fa
+          ? { user_email: otp_verify_to }
+          : { user_phone: otp_verify_to }),
+
+        verify_otp,
+      });
+    }
+
+    // ! hash password
     const hashed_new_password = await bcrypt.hash(new_password, 12);
+
     // ! update password
     user_exists.user_password = hashed_new_password;
+
+    // ! logout all devices (recommended)
+    user_exists.password_changed_at = new Date();
+
     await user_exists.save();
+
+    return {
+      success: true,
+      message: "Password changed successfully",
+    };
   },
 };

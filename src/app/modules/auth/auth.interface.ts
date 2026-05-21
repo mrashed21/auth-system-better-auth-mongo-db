@@ -33,4 +33,5 @@ export interface IUserModel {
   deleted_at?: Date;
   created_at?: Date;
   updated_at?: Date;
+  password_changed_at?: Date;
 }

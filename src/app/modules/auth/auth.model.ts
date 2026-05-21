@@ -125,6 +125,10 @@ const user_model_schema = new Schema<IUserModel>(
       type: Date,
       default: null,
     },
+    password_changed_at: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: {
