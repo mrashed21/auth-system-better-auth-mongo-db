@@ -1,3 +1,4 @@
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { Application } from "express";
 import { cors_config } from "./app/config/cors-config";
@@ -9,6 +10,8 @@ const app: Application = express();
 app.use(cors(cors_config));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 app.get("/", (_req, res) => {
   res.send("Server is running");

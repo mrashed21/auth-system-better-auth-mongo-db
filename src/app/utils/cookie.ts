@@ -1,5 +1,3 @@
-// cookie.ts
-
 import { CookieOptions, Request, Response } from "express";
 
 export const cookie_utils = {
@@ -10,7 +8,7 @@ export const cookie_utils = {
 
   // ! get cookie
   get: (req: Request, key: string) => {
-    return req.cookies[key];
+    return req.cookies?.[key];
   },
 
   // ! clear cookie

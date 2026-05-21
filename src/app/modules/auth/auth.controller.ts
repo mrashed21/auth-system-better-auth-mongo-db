@@ -1,3 +1,4 @@
+import api_error from "@/app/helper/api-error";
 import catch_async from "@/app/helper/catch-async";
 import send_response from "@/app/helper/send-response";
 import { get_request_info } from "@/app/middleware/request.info";
@@ -10,8 +11,6 @@ export const auth_controller = {
   //! register
   register: catch_async(async (req: Request, res: Response) => {
     const request_info = get_request_info(req);
-
-    console.log("Register controller called with data:", request_info);
     const result = await auth_service.register(req.body);
     send_response(res, {
       status_code: status.OK,
@@ -97,14 +96,17 @@ export const auth_controller = {
   }),
   // ! get logged user
   get_me: catch_async(async (req: Request, res: Response) => {
-    console.log("Get me controller called for body:", req.user);
-    const { _id: user_id } = req.user;
-    const result = await auth_service.get_me(user_id);
+    const user = req.user;
+
+    if (!user?._id) {
+      throw new api_error(status.UNAUTHORIZED, "Unauthorized access!");
+    }
+    const result = await auth_service.get_me(user._id);
     send_response(res, {
       status_code: status.OK,
       success: true,
       message: "User retrieved successfully",
-      data: result.data,
+      data: result.data.user,
     });
   }),
 };

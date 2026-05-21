@@ -5,10 +5,10 @@ import { TErrorResponse, TErrorSource } from "../interface/error.interface";
 export const handle_zod_error = (err: z.ZodError): TErrorResponse => {
   const status_code = status.BAD_REQUEST;
   const message = err.message;
-  const errorSource: TErrorSource[] = [];
+  const error_source: TErrorSource[] = [];
 
   err.issues.forEach((issue: z.ZodIssue) => {
-    errorSource.push({
+    error_source.push({
       path: issue.path.join(" -> "),
       message: issue.message,
     });
@@ -16,7 +16,7 @@ export const handle_zod_error = (err: z.ZodError): TErrorResponse => {
   const errorResponse: TErrorResponse = {
     success: false,
     message,
-    errorSource,
+    error_source,
     error: err,
     status_code,
   };

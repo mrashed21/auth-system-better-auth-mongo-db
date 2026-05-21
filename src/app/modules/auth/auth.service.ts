@@ -194,9 +194,12 @@ export const auth_service = {
 
     // ! jwt payload
     const jwt_payload: IJwtPayload = {
-      id: user_exists._id.toString(),
-      role: user_exists.user_role,
-      email_verified: user_exists.email_verified,
+      _id: user_exists._id.toString(),
+      user_role: user_exists.user_role,
+      user_email: user_exists.user_email,
+      user_phone: user_exists.user_phone,
+      user_email_verified: user_exists.email_verified,
+      user_phone_verified: user_exists.phone_verified,
     };
 
     // ! generate tokens
@@ -402,9 +405,12 @@ export const auth_service = {
 
     // ! jwt payload
     const jwt_payload: IJwtPayload = {
-      id: user_exists._id.toString(),
-      role: user_exists.user_role,
-      email_verified: user_exists.email_verified,
+      _id: user_exists._id.toString(),
+      user_role: user_exists.user_role,
+      user_email: user_exists.user_email,
+      user_phone: user_exists.user_phone,
+      user_email_verified: user_exists.email_verified,
+      user_phone_verified: user_exists.phone_verified,
     };
 
     // ! generate tokens
@@ -466,9 +472,12 @@ export const auth_service = {
 
     // ! jwt payload
     const jwt_payload: IJwtPayload = {
-      id: user_exists._id.toString(),
-      role: user_exists.user_role,
-      email_verified: user_exists.email_verified,
+      _id: user_exists._id.toString(),
+      user_role: user_exists.user_role,
+      user_email: user_exists.user_email,
+      user_phone: user_exists.user_phone,
+      user_email_verified: user_exists.email_verified,
+      user_phone_verified: user_exists.phone_verified,
     };
 
     // ! generate tokens

@@ -1,9 +1,13 @@
 import jwt, { JwtPayload, SignOptions } from "jsonwebtoken";
+import { user_role } from "../modules/auth/auth.interface";
 
 export interface IJwtPayload extends JwtPayload {
-  id: string;
-  role: string;
-  email_verified?: boolean;
+  _id: string;
+  user_role: (typeof user_role)[keyof typeof user_role];
+  user_email?: string;
+  user_phone?: string;
+  user_email_verified?: boolean;
+  user_phone_verified?: boolean;
 }
 
 export const jwt_token = {
