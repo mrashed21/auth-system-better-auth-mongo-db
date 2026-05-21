@@ -64,10 +64,15 @@ export const auth_controller = {
     }
 
     // ! response
+    // forward requires_2fa and method when applicable
     res.status(result.statusCode).json({
       success: result.success,
       message: result.message,
       data: {
+        requires_2fa: (result.data as any)?.requires_2fa,
+        method:
+          (result.data as any)?.method ||
+          (result.data as any)?.two_factor_otp_method,
         access_token: result.data.access_token,
         user: result.data.user,
       },
