@@ -1066,7 +1066,11 @@ export const auth_service = {
     user_id: string,
     new_email?: string,
     new_phone?: string,
-    request_data?: any,
+    request_data?: {
+      request_ip?: string;
+      request_device?: string;
+      user_agent?: string;
+    },
   ) => {
     // ! find user
     const user_exists = await user.findById(user_id);
@@ -1143,6 +1147,7 @@ export const auth_service = {
       ...(is_email ? { user_email: otp_send_to } : { user_phone: otp_send_to }),
       request_ip: request_data?.request_ip || "127.0.0.1",
       request_device: request_data?.request_device || "unknown-device",
+      user_agent: request_data?.user_agent || "unknown-user-agent",
     });
     return {
       success: true,
