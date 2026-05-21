@@ -104,4 +104,9 @@ router
     auth_controller.change_contact_confirm,
   );
 
+  // google auth and other social auth routes can be added here
+ router
+  .route("/google-auth")
+  .get(auth_controller.google_auth);
+
 export const auth_router = router;

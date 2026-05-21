@@ -335,4 +335,18 @@ export const auth_controller = {
       data: result,
     });
   }),
+
+  // ! google auth (placeholder for future implementation)
+  google_auth: catch_async(async (req: Request, res: Response) => {
+    const auth_url = await auth_service.google_auth();
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "Google authentication URL generated successfully",
+      data: {
+        auth_url,
+      },
+    });
+  }),
 };

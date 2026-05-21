@@ -7,6 +7,7 @@ import { otp_service } from "../otp/opt.service";
 import { otp_types } from "../otp/otp.interface";
 import { IUserModel } from "./auth.interface";
 import { user } from "./auth.model";
+import { auth } from "@/app/lib/auth";
 
 const build_auth_payload = (user_exists: IUserModel): IJwtPayload => ({
   _id: user_exists._id.toString(),
@@ -1204,5 +1205,23 @@ export const auth_service = {
       success: true,
       message: `${is_email ? "Email" : "Phone number"} changed successfully`,
     };
+  },
+
+  google_auth: async () => {
+    const result = await auth.api.signInSocial({
+      body: {
+        provider: "google",
+        callbackURL: `${process.env.APP_URL}/auth/google-success`,
+      },
+    });
+
+    if (!result?.url) {
+      throw new api_error(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Failed to generate Google authentication URL",
+      );
+    }
+
+    return result.url;
   },
 };
