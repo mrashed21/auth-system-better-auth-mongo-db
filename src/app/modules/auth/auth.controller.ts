@@ -2,6 +2,7 @@ import api_error from "@/app/helper/api-error";
 import catch_async from "@/app/helper/catch-async";
 import send_response from "@/app/helper/send-response";
 import { get_request_info } from "@/app/middleware/request.info";
+import { cookie_utils } from "@/app/utils/cookie";
 import { token_utils } from "@/app/utils/token";
 import { Request, Response } from "express";
 import status from "http-status";
@@ -94,6 +95,7 @@ export const auth_controller = {
       },
     });
   }),
+
   // ! get logged user
   get_me: catch_async(async (req: Request, res: Response) => {
     const user = req.user;
@@ -107,6 +109,34 @@ export const auth_controller = {
       success: true,
       message: "User retrieved successfully",
       data: result.data.user,
+    });
+  }),
+
+  // ! logout user
+  logout: catch_async(async (req: Request, res: Response) => {
+    const better_auth_session = req.cookies["better-auth.session_token"];
+    // const result = await auth_service.logout(better_auth_session);
+    cookie_utils.clear(res, "access_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+    cookie_utils.clear(res, "refresh_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+    cookie_utils.clear(res, "better-auth.session_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    send_response(res, {
+      status_code: status.OK,
+      success: true,
+      message: "User logged out successfully",
+      // data: result,
     });
   }),
 };

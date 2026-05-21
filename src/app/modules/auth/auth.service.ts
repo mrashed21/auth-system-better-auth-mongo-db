@@ -534,4 +534,12 @@ export const auth_service = {
       },
     };
   },
+
+  // ! logout user
+  // logout: async (session_token: string) => {
+  //   await session_service.logout_session(session_token);
+  //   return {
+  //     success: true,
+  //   };
+  // },
 };
