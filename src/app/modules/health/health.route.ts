@@ -8,7 +8,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>node/monitor · production</title>
+<title>Server Health </title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -106,7 +106,7 @@ canvas{width:100%!important;height:100%!important;}
 
   <div class="topbar">
     <div class="tl">
-      <div class="logo">node<em>/</em>monitor</div>
+      <div class="logo">Server<em>/</em>Health</div>
       <span class="bdg env">production</span>
       <span class="sep">·</span>
       <span class="chip" id="h-host">—</span>
