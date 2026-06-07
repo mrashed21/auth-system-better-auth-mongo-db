@@ -26,7 +26,7 @@ const storage = new CloudinaryStorage({
     const folder = extension === "pdf" ? "pdfs" : "images";
 
     return {
-      folder: `healthcare/${folder}`,
+      folder: `auth-system/${folder}`,
       public_id: uniqueName,
       resource_type: "auto",
     };

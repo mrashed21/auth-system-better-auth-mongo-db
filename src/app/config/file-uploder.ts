@@ -45,8 +45,8 @@ export const upload_file = async (
       .upload_stream(
         {
           resource_type: "auto",
-          public_id: `healthcare/${folder}/${uniqueName}`,
-          folder: `healthcare/${folder}`,
+          public_id: `auth-system/${folder}/${uniqueName}`,
+          folder: `auth-system/${folder}`,
         },
         (error, result) => {
           if (error) {
@@ -66,21 +66,26 @@ export const upload_file = async (
 
 export const delete_file = async (url: string) => {
   try {
-    const regex = /\/v\d+\/(.+?)(?:\.[a-zA-Z0-9]+)+$/;
-
+    const regex = /\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/;
     const match = url.match(regex);
 
-    if (match && match[1]) {
-      const publicId = match[1];
+    if (!match?.[1]) return;
 
-      await cloudinary.uploader.destroy(publicId, {
-        resource_type: "image",
-      });
+    const publicId = match[1];
 
-      console.log(`File ${publicId} deleted from cloudinary`);
+    let resourceType: "image" | "raw" = "image";
+
+    if (url.includes("/raw/upload/")) {
+      resourceType = "raw";
     }
+
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+    });
+
+    console.log(`Deleted: ${publicId}`);
   } catch (error) {
-    console.error("Error deleting file from Cloudinary:", error);
+    console.error(error);
     throw new api_error(
       status.INTERNAL_SERVER_ERROR,
       "Failed to delete file from Cloudinary",
