@@ -1,3 +1,4 @@
+import { multer_upload } from "@/app/config/multer";
 import { check_auth } from "@/app/middleware/auth-middleware";
 import { validate_request } from "@/app/middleware/validate-request";
 import { Router } from "express";
@@ -24,7 +25,11 @@ const router: Router = Router();
 
 router
   .route("/register")
-  .post(validate_request(register_user_schema), auth_controller.register);
+  .post(
+    multer_upload.single("user_profile_image"),
+    validate_request(register_user_schema),
+    auth_controller.register,
+  );
 router
   .route("/verify-otp")
   .post(validate_request(verify_otp_schema), auth_controller.verify_otp);
@@ -104,9 +109,7 @@ router
     auth_controller.change_contact_confirm,
   );
 
-  // google auth and other social auth routes can be added here
- router
-  .route("/google-auth")
-  .get(auth_controller.google_auth);
+// google auth and other social auth routes can be added here
+router.route("/google-auth").get(auth_controller.google_auth);
 
 export const auth_router = router;

@@ -13,7 +13,16 @@ export const auth_controller = {
   register: catch_async(async (req: Request, res: Response) => {
     const request_data = get_request_info(req);
 
-    const result = await auth_service.register(req.body, {
+     const payload: any = {
+      ...req.body
+    };
+
+    if (req.file?.path) {
+      payload.user_profile_image = req.file.path;
+    }
+
+    
+    const result = await auth_service.register(payload, {
       ...request_data,
       request_device: request_data.request_device
         ? JSON.stringify(request_data.request_device)
