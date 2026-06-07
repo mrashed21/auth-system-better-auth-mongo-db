@@ -17,8 +17,6 @@ const user_model_schema = new Schema<IUserModel>(
       type: String,
       trim: true,
       lowercase: true,
-      unique: true,
-      sparse: true,
       default: undefined,
       validate: {
         validator: function (value: string) {
@@ -37,8 +35,6 @@ const user_model_schema = new Schema<IUserModel>(
     user_phone: {
       type: String,
       trim: true,
-      unique: true,
-      sparse: true,
       default: undefined,
       validate: {
         validator: function (value: string) {
@@ -90,16 +86,12 @@ const user_model_schema = new Schema<IUserModel>(
       type: String,
       trim: true,
       lowercase: true,
-      unique: true,
-      sparse: true,
-      default: null,
+      default: undefined,
     },
     pending_phone: {
       type: String,
       trim: true,
-      unique: true,
-      sparse: true,
-      default: null,
+      default: undefined,
     },
     user_role: {
       type: String,
@@ -158,8 +150,32 @@ const user_model_schema = new Schema<IUserModel>(
   },
 );
 
+const optional_unique_index = (field: string) => ({
+  unique: true,
+  partialFilterExpression: {
+    [field]: { $type: "string" },
+  },
+});
+
+user_model_schema.index(
+  { user_email: 1 },
+  optional_unique_index("user_email"),
+);
+user_model_schema.index(
+  { user_phone: 1 },
+  optional_unique_index("user_phone"),
+);
+user_model_schema.index(
+  { pending_email: 1 },
+  optional_unique_index("pending_email"),
+);
+user_model_schema.index(
+  { pending_phone: 1 },
+  optional_unique_index("pending_phone"),
+);
+
 // email or phone required
-user_model_schema.pre("validate", async function () {
+user_model_schema.pre("validate", function () {
   const has_email = !!this.user_email?.trim();
 
   const has_phone = !!this.user_phone?.trim();

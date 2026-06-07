@@ -118,8 +118,8 @@ export const auth_service = {
     // ! create user
     const created_user = await user.create({
       user_name,
-      user_email,
-      user_phone,
+      ...(user_email ? { user_email } : {}),
+      ...(user_phone ? { user_phone } : {}),
       user_password: hashed_password,
       user_role: "user",
       user_area,

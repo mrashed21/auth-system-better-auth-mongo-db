@@ -11,7 +11,8 @@ const email_field = z
     z.literal(""),
     z.undefined(),
   ])
-  .optional();
+  .optional()
+  .transform((value) => value || undefined);
 
 const phone_field = z
   .union([
@@ -21,7 +22,8 @@ const phone_field = z
     z.literal(""),
     z.undefined(),
   ])
-  .optional();
+  .optional()
+  .transform((value) => value || undefined);
 
 const verify_otp_field = z
   .string({
@@ -143,6 +145,20 @@ export const register_user_schema = z
         code: "custom",
         path: ["user_phone"],
         message: "Email or phone number is required",
+      });
+    }
+
+    if (has_email && has_phone) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["user_email"],
+        message: "Provide either email or phone number, not both",
+      });
+
+      ctx.addIssue({
+        code: "custom",
+        path: ["user_phone"],
+        message: "Provide either email or phone number, not both",
       });
     }
   });
