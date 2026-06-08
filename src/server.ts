@@ -18,7 +18,7 @@ const banner = (port: number | string) => {
   const lines = [
     ``,
     `╔══════════════════════════════════════════════════════╗`,
-    `║            LMS BACKEND SERVER                        ║`,
+    `║          AUTH SYSTEM BACKEND SERVER                  ║`,
     `╠══════════════════════════════════════════════════════╣`,
     row(" Status   : ", "Online"),
     row(" URL      : ", url),
